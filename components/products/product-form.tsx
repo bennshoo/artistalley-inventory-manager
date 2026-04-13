@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { toast } from 'sonner'
 import { Category, Product } from '@/lib/database.types'
 import { Loader2 } from 'lucide-react'
@@ -84,8 +84,12 @@ export function ProductForm({ categories, product }: ProductFormProps) {
       <div className="space-y-1.5">
         <Label>Category</Label>
         <Select value={form.category_id} onValueChange={v => set('category_id', v ?? '')}>
-          <SelectTrigger>
-            <SelectValue placeholder="Select category" />
+          <SelectTrigger className="w-full">
+            <span className={form.category_id ? '' : 'text-muted-foreground text-sm'}>
+              {form.category_id
+                ? (() => { const c = categories.find(x => x.id === form.category_id); return c ? `${c.name} — $${c.base_price.toFixed(2)}` : 'Select category' })()
+                : 'Select category'}
+            </span>
           </SelectTrigger>
           <SelectContent>
             {categories.map(c => (
