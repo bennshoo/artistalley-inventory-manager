@@ -44,19 +44,6 @@ export function RestockForm({ products, suppliers }: RestockFormProps) {
     })
     if (restockError) { toast.error(restockError.message); setLoading(false); return }
 
-    // Increment product quantity
-    const { error: updateError } = await supabase.rpc('increment_product_quantity', {
-      p_id: form.product_id,
-      delta: qty,
-    })
-    if (updateError) {
-      // Fallback: fetch and update
-      const { data: prod } = await supabase.from('product').select('quantity').eq('id', form.product_id).single()
-      if (prod) {
-        await supabase.from('product').update({ quantity: prod.quantity + qty }).eq('id', form.product_id)
-      }
-    }
-
     toast.success(`Restock logged — +${qty} units`)
     router.push('/suppliers')
     router.refresh()
