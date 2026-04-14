@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChevronLeft, Edit } from 'lucide-react'
 import { ProductImage } from '@/components/products/product-image'
 import { DeleteProductButton } from '@/components/products/delete-product-button'
+import { ToggleProductActiveButton } from '@/components/products/toggle-product-active-button'
 import { LinkButton } from '@/components/ui/link-button'
 
 export const dynamic = 'force-dynamic'
@@ -51,6 +52,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           </div>
         </div>
         <div className="flex gap-2">
+          <ToggleProductActiveButton productId={id} isActive={product.is_active} />
           <LinkButton href={`/products/${id}/edit`} size="sm" variant="outline"><Edit size={14} className="mr-1" />Edit</LinkButton>
           <DeleteProductButton id={id} />
         </div>

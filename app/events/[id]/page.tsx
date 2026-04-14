@@ -9,6 +9,7 @@ import { RevenueLogger } from '@/components/events/revenue-logger'
 import { CostLogger } from '@/components/events/cost-logger'
 import { SalesSheetManager } from '@/components/events/sales-sheet-manager'
 import { DeleteEventButton } from '@/components/events/delete-event-button'
+import { ToggleEventActiveButton } from '@/components/events/toggle-event-active-button'
 
 export const dynamic = 'force-dynamic'
 
@@ -48,6 +49,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <ToggleEventActiveButton eventId={id} isActive={event.is_active ?? true} />
           <LinkButton href={`/events/${id}/edit`} size="sm" variant="outline"><Edit size={14} className="mr-1" />Edit</LinkButton>
           <DeleteEventButton eventId={id} />
         </div>

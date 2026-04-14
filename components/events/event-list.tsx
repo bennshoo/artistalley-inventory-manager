@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { MapPin, Trash2, Loader2 } from 'lucide-react'
+import { MapPin, Trash2, Loader2, Power } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatEventDate } from '@/lib/utils'
 import { cn } from '@/lib/utils'
@@ -17,6 +17,7 @@ type Event = {
   date_start: string
   date_end: string
   location: string | null
+  is_active: boolean
   sales_sheet: { status: string }[]
 }
 
@@ -25,7 +26,11 @@ export function EventList({ initialEvents }: { initialEvents: Event[] }) {
   const [events, setEvents] = useState(initialEvents)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [confirming, setConfirming] = useState(false)
-  const [deleting, setDeleting] = useState(false)
+  const [loading, setLoading] = useState(false)
+
+  const selectedEvents = events.filter(e => selected.has(e.id))
+  const allSelectedActive = selectedEvents.every(e => e.is_active)
+  const allSelectedInactive = selectedEvents.every(e => !e.is_active)
 
   function toggleSelect(id: string, e: React.MouseEvent) {
     e.preventDefault()
@@ -44,20 +49,34 @@ export function EventList({ initialEvents }: { initialEvents: Event[] }) {
     }
   }
 
+  async function bulkSetActive(active: boolean) {
+    setLoading(true)
+    const ids = [...selected]
+    const { error } = await supabase.from('event').update({ is_active: active }).in('id', ids)
+    if (error) {
+      toast.error(error.message)
+      setLoading(false)
+      return
+    }
+    setEvents(prev => prev.map(e => selected.has(e.id) ? { ...e, is_active: active } : e))
+    setLoading(false)
+    toast.success(`${ids.length} event${ids.length > 1 ? 's' : ''} ${active ? 'activated' : 'deactivated'}`)
+  }
+
   async function handleDelete() {
-    setDeleting(true)
+    setLoading(true)
     const ids = [...selected]
     const { error } = await supabase.from('event').delete().in('id', ids)
     if (error) {
       toast.error(error.message)
-      setDeleting(false)
+      setLoading(false)
       setConfirming(false)
       return
     }
     setEvents(prev => prev.filter(e => !ids.includes(e.id)))
     setSelected(new Set())
     setConfirming(false)
-    setDeleting(false)
+    setLoading(false)
     toast.success(`${ids.length} event${ids.length > 1 ? 's' : ''} deleted`)
     router.refresh()
   }
@@ -70,24 +89,35 @@ export function EventList({ initialEvents }: { initialEvents: Event[] }) {
         selected.size > 0 ? 'opacity-100' : 'opacity-0 pointer-events-none'
       )}>
         <span className="text-sm font-medium">{selected.size} selected</span>
-        <div className="flex-1" />
-        {confirming ? (
-          <>
-            <span className="text-sm text-muted-foreground">Delete {selected.size} event{selected.size > 1 ? 's' : ''}?</span>
-            <Button size="sm" variant="destructive" onClick={handleDelete} disabled={deleting}>
-              {deleting && <Loader2 size={14} className="mr-1 animate-spin" />}
-              Yes, delete
+        <div className="flex gap-2 ml-auto flex-wrap">
+          {!allSelectedActive && (
+            <Button size="sm" variant="outline" onClick={() => bulkSetActive(true)} disabled={loading}>
+              <Power size={13} className="mr-1" />Activate
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setConfirming(false)} disabled={deleting}>Cancel</Button>
-          </>
-        ) : (
-          <>
-            <Button size="sm" variant="destructive" onClick={() => setConfirming(true)}>
-              <Trash2 size={14} className="mr-1" />Delete
+          )}
+          {!allSelectedInactive && (
+            <Button size="sm" variant="outline" onClick={() => bulkSetActive(false)} disabled={loading}>
+              <Power size={13} className="mr-1" />Deactivate
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setSelected(new Set())}>Clear</Button>
-          </>
-        )}
+          )}
+          {confirming ? (
+            <>
+              <span className="text-sm text-muted-foreground self-center">Delete {selected.size} event{selected.size > 1 ? 's' : ''}?</span>
+              <Button size="sm" variant="destructive" onClick={handleDelete} disabled={loading}>
+                {loading && <Loader2 size={14} className="mr-1 animate-spin" />}
+                Yes, delete
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setConfirming(false)} disabled={loading}>Cancel</Button>
+            </>
+          ) : (
+            <>
+              <Button size="sm" variant="destructive" onClick={() => setConfirming(true)}>
+                <Trash2 size={14} className="mr-1" />Delete
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setSelected(new Set())}>Clear</Button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Select all row */}
@@ -112,7 +142,11 @@ export function EventList({ initialEvents }: { initialEvents: Event[] }) {
           return (
             <div
               key={event.id}
-              className={`flex items-center gap-3 border rounded-lg px-4 py-3 transition-colors ${isSelected ? 'bg-muted border-foreground/20' : 'hover:bg-muted/50'}`}
+              className={cn(
+                'flex items-center gap-3 border rounded-lg px-4 py-3 transition-colors',
+                isSelected ? 'bg-muted border-foreground/20' : 'hover:bg-muted/50',
+                !event.is_active && 'bg-muted/60 border-muted-foreground/20 opacity-60'
+              )}
             >
               <input
                 type="checkbox"
@@ -125,6 +159,7 @@ export function EventList({ initialEvents }: { initialEvents: Event[] }) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-sm">{event.name}</span>
+                    {!event.is_active && <Badge variant="outline" className="text-xs">Inactive</Badge>}
                     {hasPendingSheet && <Badge variant="outline" className="text-xs">Sheet Pending</Badge>}
                     {hasImportedSheet && <Badge variant="secondary" className="text-xs">Imported</Badge>}
                   </div>

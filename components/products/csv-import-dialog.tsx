@@ -20,6 +20,7 @@ interface Mapping {
   name: string
   sku: string
   category: string
+  quantity: string
 }
 
 interface ParsedRow {
@@ -27,6 +28,9 @@ interface ParsedRow {
   sku: string
   category_id: string | null
   matchedCategory: string | null
+  quantity: number
+  isDuplicate: boolean
+  existingId: string | null
 }
 
 const NONE = '__none__'
@@ -37,18 +41,21 @@ export function CsvImportDialog({ categories }: Props) {
   const [step, setStep] = useState<'upload' | 'map' | 'preview'>('upload')
   const [headers, setHeaders] = useState<string[]>([])
   const [rawRows, setRawRows] = useState<string[][]>([])
-  const [mapping, setMapping] = useState<Mapping>({ name: '', sku: '', category: '' })
+  const [mapping, setMapping] = useState<Mapping>({ name: '', sku: '', category: '', quantity: '' })
   const [mapErrors, setMapErrors] = useState<Partial<Mapping>>({})
   const [parsed, setParsed] = useState<ParsedRow[]>([])
+  const [duplicateAction, setDuplicateAction] = useState<'skip' | 'overwrite'>('skip')
   const [importing, setImporting] = useState(false)
+  const [previewing, setPreviewing] = useState(false)
 
   function reset() {
     setStep('upload')
     setHeaders([])
     setRawRows([])
-    setMapping({ name: '', sku: '', category: '' })
+    setMapping({ name: '', sku: '', category: '', quantity: '' })
     setMapErrors({})
     setParsed([])
+    setDuplicateAction('skip')
   }
 
   function handleFile(file: File) {
@@ -64,18 +71,20 @@ export function CsvImportDialog({ categories }: Props) {
       }
       setHeaders(nonEmpty[0].map(h => String(h ?? '').trim()))
       setRawRows(nonEmpty.slice(1))
-      setMapping({ name: '', sku: '', category: '' })
+      setMapping({ name: '', sku: '', category: '', quantity: '' })
       setMapErrors({})
       setStep('map')
     }
     reader.readAsArrayBuffer(file)
   }
 
-  function buildPreview() {
+  async function buildPreview() {
     const errors: Partial<Mapping> = {}
     if (!mapping.name) errors.name = 'Required'
     if (!mapping.sku) errors.sku = 'Required'
     if (Object.keys(errors).length > 0) { setMapErrors(errors); return }
+
+    setPreviewing(true)
 
     const catMap: Record<string, Category> = {}
     for (const c of categories) catMap[c.name.toLowerCase().trim()] = c
@@ -83,8 +92,9 @@ export function CsvImportDialog({ categories }: Props) {
     const nameIdx = headers.indexOf(mapping.name)
     const skuIdx = headers.indexOf(mapping.sku)
     const catIdx = mapping.category && mapping.category !== NONE ? headers.indexOf(mapping.category) : -1
+    const qtyIdx = mapping.quantity && mapping.quantity !== NONE ? headers.indexOf(mapping.quantity) : -1
 
-    const result: ParsedRow[] = []
+    const result: Omit<ParsedRow, 'isDuplicate' | 'existingId'>[] = []
     for (const row of rawRows) {
       const name = String(row[nameIdx] ?? '').trim()
       const sku = String(row[skuIdx] ?? '').trim()
@@ -97,28 +107,96 @@ export function CsvImportDialog({ categories }: Props) {
         const match = catMap[raw]
         if (match) { category_id = match.id; matchedCategory = match.name }
       }
-      result.push({ name, sku, category_id, matchedCategory })
+
+      const quantity = qtyIdx >= 0 ? Math.max(0, Math.floor(Number(row[qtyIdx]) || 0)) : 0
+      result.push({ name, sku, category_id, matchedCategory, quantity })
     }
 
     if (result.length === 0) {
       toast.error('No valid rows found. Make sure Name and SKU columns have data.')
+      setPreviewing(false)
       return
     }
-    setParsed(result)
+
+    // Check for existing SKUs
+    const skus = result.map(r => r.sku)
+    const { data: existing } = await supabase
+      .from('product')
+      .select('id, sku')
+      .in('sku', skus)
+
+    const existingMap: Record<string, string> = {}
+    for (const p of existing ?? []) existingMap[p.sku] = p.id
+
+    const finalRows: ParsedRow[] = result.map(r => ({
+      ...r,
+      isDuplicate: !!existingMap[r.sku],
+      existingId: existingMap[r.sku] ?? null,
+    }))
+
+    setParsed(finalRows)
+    setPreviewing(false)
     setStep('preview')
   }
 
   async function handleImport() {
     setImporting(true)
-    const records = parsed.map(p => ({
-      name: p.name,
-      sku: p.sku,
-      category_id: p.category_id,
-      is_active: !!p.category_id,
-    }))
-    const { error } = await supabase.from('product').insert(records)
-    if (error) { toast.error(error.message); setImporting(false); return }
-    toast.success(`Imported ${records.length} product${records.length > 1 ? 's' : ''}`)
+    const today = new Date().toISOString().split('T')[0]
+
+    const newRows = parsed.filter(p => !p.isDuplicate)
+    const dupRows = parsed.filter(p => p.isDuplicate)
+
+    // Insert new products
+    if (newRows.length > 0) {
+      const records = newRows.map(p => ({
+        name: p.name,
+        sku: p.sku,
+        category_id: p.category_id,
+        is_active: !!p.category_id,
+        quantity: 0,
+      }))
+      const { data: inserted, error } = await supabase.from('product').insert(records).select('id, sku')
+      if (error) { toast.error(error.message); setImporting(false); return }
+
+      const skuToId: Record<string, string> = {}
+      for (const row of inserted ?? []) skuToId[row.sku] = row.id
+
+      const adjustments = newRows
+        .filter(p => p.quantity > 0)
+        .map(p => ({ product_id: skuToId[p.sku], delta: p.quantity, note: 'CSV import', date: today }))
+        .filter(a => a.product_id)
+
+      if (adjustments.length > 0) {
+        const { error: adjError } = await supabase.from('inventory_adjustment').insert(adjustments)
+        if (adjError) { toast.error(`Products imported but adjustments failed: ${adjError.message}`); setImporting(false); return }
+      }
+    }
+
+    // Handle duplicates
+    if (duplicateAction === 'overwrite' && dupRows.length > 0) {
+      for (const p of dupRows) {
+        const { error } = await supabase
+          .from('product')
+          .update({ name: p.name, category_id: p.category_id, is_active: !!p.category_id })
+          .eq('id', p.existingId!)
+        if (error) { toast.error(`Failed to update ${p.sku}: ${error.message}`); setImporting(false); return }
+
+        if (p.quantity > 0) {
+          const { error: adjError } = await supabase
+            .from('inventory_adjustment')
+            .insert({ product_id: p.existingId!, delta: p.quantity, note: 'CSV import', date: today })
+          if (adjError) { toast.error(`Updated ${p.sku} but adjustment failed: ${adjError.message}`); setImporting(false); return }
+        }
+      }
+    }
+
+    const importedCount = newRows.length + (duplicateAction === 'overwrite' ? dupRows.length : 0)
+    const skippedCount = duplicateAction === 'skip' ? dupRows.length : 0
+    const parts = []
+    if (importedCount > 0) parts.push(`${importedCount} product${importedCount > 1 ? 's' : ''} imported`)
+    if (skippedCount > 0) parts.push(`${skippedCount} duplicate${skippedCount > 1 ? 's' : ''} skipped`)
+    toast.success(parts.join(', '))
+
     setImporting(false)
     setOpen(false)
     reset()
@@ -126,6 +204,8 @@ export function CsvImportDialog({ categories }: Props) {
   }
 
   const noMatchCount = parsed.filter(p => !p.category_id).length
+  const withQtyCount = parsed.filter(p => p.quantity > 0).length
+  const dupCount = parsed.filter(p => p.isDuplicate).length
 
   return (
     <>
@@ -174,6 +254,7 @@ export function CsvImportDialog({ categories }: Props) {
                   { field: 'name' as const, label: 'Product Name', required: true },
                   { field: 'sku' as const, label: 'SKU', required: true },
                   { field: 'category' as const, label: 'Category', required: false },
+                  { field: 'quantity' as const, label: 'Quantity', required: false },
                 ]).map(({ field, label, required }) => (
                   <div key={field} className="grid grid-cols-[140px_1fr] items-center gap-4">
                     <span className="text-sm font-medium">
@@ -208,6 +289,7 @@ export function CsvImportDialog({ categories }: Props) {
               </div>
               <p className="text-xs text-muted-foreground">
                 Categories are matched by name. Unmatched categories will be left blank and the product will be inactive.
+                Quantity imports are recorded as inventory adjustments.
               </p>
             </div>
           )}
@@ -215,14 +297,51 @@ export function CsvImportDialog({ categories }: Props) {
           {/* Step 3: Preview */}
           {step === 'preview' && (
             <div className="space-y-3">
-              <div className="flex gap-4 text-sm">
+              <div className="flex gap-4 text-sm flex-wrap">
                 <span><span className="font-medium">{parsed.length}</span> products ready</span>
+                {withQtyCount > 0 && (
+                  <span className="text-blue-600">
+                    <span className="font-medium">{withQtyCount}</span> with stock adjustment
+                  </span>
+                )}
                 {noMatchCount > 0 && (
                   <span className="text-amber-600">
-                    <span className="font-medium">{noMatchCount}</span> with no category match (will be inactive)
+                    <span className="font-medium">{noMatchCount}</span> with no category match
+                  </span>
+                )}
+                {dupCount > 0 && (
+                  <span className="text-orange-600">
+                    <span className="font-medium">{dupCount}</span> duplicate SKU{dupCount > 1 ? 's' : ''}
                   </span>
                 )}
               </div>
+
+              {dupCount > 0 && (
+                <div className="flex items-center gap-3 rounded-lg border border-orange-200 bg-orange-50 dark:border-orange-900 dark:bg-orange-950/30 px-3 py-2">
+                  <span className="text-xs text-orange-800 dark:text-orange-300 flex-1">
+                    {dupCount} SKU{dupCount > 1 ? 's' : ''} already exist. What should happen?
+                  </span>
+                  <div className="flex gap-1">
+                    <Button
+                      size="sm"
+                      variant={duplicateAction === 'skip' ? 'default' : 'outline'}
+                      className="h-7 text-xs"
+                      onClick={() => setDuplicateAction('skip')}
+                    >
+                      Skip
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={duplicateAction === 'overwrite' ? 'default' : 'outline'}
+                      className="h-7 text-xs"
+                      onClick={() => setDuplicateAction('overwrite')}
+                    >
+                      Overwrite
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               <div className="border rounded-lg overflow-hidden">
                 <table className="w-full text-xs">
                   <thead className="bg-muted/50">
@@ -230,15 +349,27 @@ export function CsvImportDialog({ categories }: Props) {
                       <th className="text-left px-3 py-2 font-medium">Name</th>
                       <th className="text-left px-3 py-2 font-medium">SKU</th>
                       <th className="text-left px-3 py-2 font-medium">Category</th>
+                      <th className="text-left px-3 py-2 font-medium">Qty</th>
+                      <th className="text-left px-3 py-2 font-medium"></th>
                     </tr>
                   </thead>
                   <tbody>
                     {parsed.slice(0, 8).map((row, i) => (
-                      <tr key={i} className="border-t">
+                      <tr key={i} className={cn('border-t', row.isDuplicate && 'bg-orange-50/50 dark:bg-orange-950/20')}>
                         <td className="px-3 py-1.5 truncate max-w-[180px]">{row.name}</td>
                         <td className="px-3 py-1.5">{row.sku}</td>
                         <td className={cn('px-3 py-1.5', !row.matchedCategory && 'text-muted-foreground')}>
                           {row.matchedCategory ?? '—'}
+                        </td>
+                        <td className="px-3 py-1.5 text-muted-foreground">
+                          {row.quantity > 0 ? row.quantity : '—'}
+                        </td>
+                        <td className="px-3 py-1.5">
+                          {row.isDuplicate && (
+                            <span className="text-orange-600 font-medium">
+                              {duplicateAction === 'overwrite' ? 'overwrite' : 'skip'}
+                            </span>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -260,7 +391,10 @@ export function CsvImportDialog({ categories }: Props) {
             {step === 'map' && (
               <>
                 <Button variant="outline" size="sm" onClick={() => setStep('upload')}>Back</Button>
-                <Button size="sm" onClick={buildPreview}>Preview</Button>
+                <Button size="sm" onClick={buildPreview} disabled={previewing}>
+                  {previewing && <Loader2 size={14} className="mr-1 animate-spin" />}
+                  Preview
+                </Button>
               </>
             )}
             {step === 'preview' && (
@@ -268,7 +402,7 @@ export function CsvImportDialog({ categories }: Props) {
                 <Button variant="outline" size="sm" onClick={() => setStep('map')}>Back</Button>
                 <Button size="sm" onClick={handleImport} disabled={importing}>
                   {importing && <Loader2 size={14} className="mr-1 animate-spin" />}
-                  Import {parsed.length} product{parsed.length > 1 ? 's' : ''}
+                  Import {parsed.length - (duplicateAction === 'skip' ? dupCount : 0)} product{parsed.length > 1 ? 's' : ''}
                 </Button>
               </>
             )}

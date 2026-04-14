@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/u
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { ProductImage } from '@/components/products/product-image'
 import { toast } from 'sonner'
-import { Loader2, Trash2, Tag, X, PowerOff, Power, Search } from 'lucide-react'
+import { Loader2, Trash2, Tag, X, PowerOff, Power, Search, ChevronDown, Check } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { Category, Tag as TagType } from '@/lib/database.types'
@@ -49,6 +49,10 @@ export function ProductList({ products: initialProducts, categories, tags }: Pro
   const [tagWarningOpen, setTagWarningOpen] = useState(false)
   const [tagEditOpen, setTagEditOpen] = useState(false)
   const [draftTagIds, setDraftTagIds] = useState<Set<string>>(new Set())
+  const [showInactive, setShowInactive] = useState(true)
+  const [showNeedsAttention, setShowNeedsAttention] = useState(false)
+  const [filterCategoryId, setFilterCategoryId] = useState<string>('')
+  const [tagDropdownOpen, setTagDropdownOpen] = useState(false)
 
   function toggleTagFilter(id: string) {
     setActiveTagIds(prev => {
@@ -68,7 +72,13 @@ export function ProductList({ products: initialProducts, categories, tags }: Pro
     const matchesTags = activeTagIds.size === 0 ||
       p.product_tag.some(pt => activeTagIds.has(pt.tag_id))
 
-    return matchesSearch && matchesTags
+    const matchesActive = showInactive || p.is_active
+
+    const matchesCategory = !filterCategoryId || p.category_id === filterCategoryId
+
+    const matchesNeedsAttention = !showNeedsAttention || (!p.is_active && !p.category_id)
+
+    return matchesSearch && matchesTags && matchesActive && matchesCategory && matchesNeedsAttention
   })
 
   const allSelected = filtered.length > 0 && filtered.every(p => selected.has(p.id))
@@ -209,38 +219,103 @@ export function ProductList({ products: initialProducts, categories, tags }: Pro
         />
       </div>
 
-      {/* Tag filters */}
-      {tags.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 items-center">
-          <span className="text-xs text-muted-foreground">Filter:</span>
-          {tags.map(t => {
-            const color = getTagColor(t.color)
-            const active = activeTagIds.has(t.id)
-            return (
-              <button
-                key={t.id}
-                onClick={() => toggleTagFilter(t.id)}
-                className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium transition-opacity border-2"
-                style={active
-                  ? { backgroundColor: color.bg, color: color.text, borderColor: color.bg }
-                  : { backgroundColor: 'transparent', color: color.bg, borderColor: color.bg, opacity: 0.6 }
-                }
-              >
-                {t.name}
-                {active && <X size={10} className="ml-1 opacity-70" />}
-              </button>
-            )
-          })}
-          {activeTagIds.size > 0 && (
+      {/* Filter bar */}
+      <div className="flex flex-wrap gap-2 items-center">
+        {/* Category dropdown */}
+        <Select
+          value={filterCategoryId || '__all__'}
+          onValueChange={v => setFilterCategoryId(v === '__all__' ? '' : v)}
+        >
+          <SelectTrigger className="h-8 w-44 text-xs">
+            <span className={filterCategoryId ? 'text-xs' : 'text-xs text-muted-foreground'}>
+              {categories.find(c => c.id === filterCategoryId)?.name ?? 'All categories'}
+            </span>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all__">All categories</SelectItem>
+            {categories.map(c => (
+              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {/* Tags multi-select dropdown */}
+        {tags.length > 0 && (
+          <div className="relative">
             <button
-              onClick={() => setActiveTagIds(new Set())}
-              className="text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => setTagDropdownOpen(v => !v)}
+              className={cn(
+                'h-8 inline-flex items-center gap-1.5 rounded-md border px-3 text-xs transition-colors',
+                activeTagIds.size > 0
+                  ? 'border-foreground bg-foreground text-background'
+                  : 'border-input bg-background text-muted-foreground hover:bg-muted/50'
+              )}
             >
-              Clear
+              {activeTagIds.size > 0 ? `${activeTagIds.size} tag${activeTagIds.size > 1 ? 's' : ''}` : 'All tags'}
+              <ChevronDown size={12} />
             </button>
+            {tagDropdownOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setTagDropdownOpen(false)} />
+                <div className="absolute z-50 mt-1 min-w-40 rounded-md border bg-popover shadow-md py-1">
+                  {tags.map(t => {
+                    const color = getTagColor(t.color)
+                    const active = activeTagIds.has(t.id)
+                    return (
+                      <button
+                        key={t.id}
+                        onClick={() => toggleTagFilter(t.id)}
+                        className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-muted transition-colors"
+                      >
+                        <span
+                          className="h-2.5 w-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: color.bg }}
+                        />
+                        <span className="flex-1 text-left">{t.name}</span>
+                        {active && <Check size={12} className="shrink-0" />}
+                      </button>
+                    )
+                  })}
+                  {activeTagIds.size > 0 && (
+                    <button
+                      onClick={() => { setActiveTagIds(new Set()); setTagDropdownOpen(false) }}
+                      className="w-full px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground border-t mt-1 text-left"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Inactive toggle */}
+        <button
+          onClick={() => setShowInactive(v => !v)}
+          className={cn(
+            'h-8 inline-flex items-center rounded-md border px-3 text-xs transition-colors',
+            showInactive
+              ? 'border-foreground bg-foreground text-background'
+              : 'border-input bg-background text-muted-foreground hover:bg-muted/50'
           )}
-        </div>
-      )}
+        >
+          Show inactive
+        </button>
+
+        {/* Needs attention toggle */}
+        <button
+          onClick={() => setShowNeedsAttention(v => !v)}
+          className={cn(
+            'h-8 inline-flex items-center rounded-md border px-3 text-xs transition-colors',
+            showNeedsAttention
+              ? 'border-destructive bg-destructive text-destructive-foreground'
+              : 'border-input bg-background text-muted-foreground hover:bg-muted/50'
+          )}
+        >
+          Needs attention
+        </button>
+      </div>
 
       {/* Bulk action toolbar */}
       <div className={cn(
