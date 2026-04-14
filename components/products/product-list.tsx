@@ -34,6 +34,13 @@ interface ProductListProps {
   tags: TagType[]
 }
 
+const FILTERS_KEY = 'product-list-filters'
+
+function loadProductFilters() {
+  if (typeof window === 'undefined') return {}
+  try { return JSON.parse(sessionStorage.getItem(FILTERS_KEY) ?? '{}') } catch { return {} }
+}
+
 export function ProductList({ products: initialProducts, categories, tags }: ProductListProps) {
   const router = useRouter()
   const [products, setProducts] = useState(initialProducts)
@@ -44,15 +51,32 @@ export function ProductList({ products: initialProducts, categories, tags }: Pro
   const [newCategoryId, setNewCategoryId] = useState('')
   const [loading, setLoading] = useState(false)
   const [togglingId, setTogglingId] = useState<string | null>(null)
-  const [search, setSearch] = useState('')
-  const [activeTagIds, setActiveTagIds] = useState<Set<string>>(new Set())
+  const [search, setSearch] = useState(() => loadProductFilters().search ?? '')
+  const [activeTagIds, setActiveTagIds] = useState<Set<string>>(() => new Set(loadProductFilters().activeTagIds ?? []))
   const [tagWarningOpen, setTagWarningOpen] = useState(false)
   const [tagEditOpen, setTagEditOpen] = useState(false)
   const [draftTagIds, setDraftTagIds] = useState<Set<string>>(new Set())
-  const [showInactive, setShowInactive] = useState(true)
-  const [showNeedsAttention, setShowNeedsAttention] = useState(false)
-  const [filterCategoryId, setFilterCategoryId] = useState<string>('')
+  const [showInactive, setShowInactive] = useState(() => loadProductFilters().showInactive ?? false)
+  const [showNeedsAttention, setShowNeedsAttention] = useState(() => loadProductFilters().showNeedsAttention ?? false)
+  const [filterCategoryId, setFilterCategoryId] = useState<string>(() => loadProductFilters().filterCategoryId ?? '')
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false)
+
+  useEffect(() => {
+    sessionStorage.setItem(FILTERS_KEY, JSON.stringify({
+      search, activeTagIds: [...activeTagIds], showInactive, showNeedsAttention, filterCategoryId,
+    }))
+  }, [search, activeTagIds, showInactive, showNeedsAttention, filterCategoryId])
+
+  const hasActiveFilters = search.trim() || activeTagIds.size > 0 || showInactive || showNeedsAttention || filterCategoryId
+
+  function resetFilters() {
+    setSearch('')
+    setActiveTagIds(new Set())
+    setShowInactive(false)
+    setShowNeedsAttention(false)
+    setFilterCategoryId('')
+    sessionStorage.removeItem(FILTERS_KEY)
+  }
 
   function toggleTagFilter(id: string) {
     setActiveTagIds(prev => {
@@ -315,6 +339,15 @@ export function ProductList({ products: initialProducts, categories, tags }: Pro
         >
           Needs attention
         </button>
+
+        {hasActiveFilters && (
+          <button
+            onClick={resetFilters}
+            className="h-8 inline-flex items-center rounded-md px-3 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X size={12} className="mr-1" />Reset filters
+          </button>
+        )}
       </div>
 
       {/* Bulk action toolbar */}

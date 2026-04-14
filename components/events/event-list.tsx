@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
-import { MapPin, Trash2, Loader2, Power, X, Search, ChevronDown, ChevronRight } from 'lucide-react'
+import { MapPin, Trash2, Loader2, Power, X, Search, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatEventDate } from '@/lib/utils'
 import { cn } from '@/lib/utils'
@@ -22,7 +22,15 @@ type Event = {
   location: string | null
   is_active: boolean
   app_status: string
+  web_address: string | null
   sales_sheet: { status: string }[]
+}
+
+const FILTERS_KEY = 'event-list-filters'
+
+function loadEventFilters() {
+  if (typeof window === 'undefined') return {}
+  try { return JSON.parse(sessionStorage.getItem(FILTERS_KEY) ?? '{}') } catch { return {} }
 }
 
 export function EventList({ initialEvents }: { initialEvents: Event[] }) {
@@ -35,11 +43,26 @@ export function EventList({ initialEvents }: { initialEvents: Event[] }) {
 
   const [upcomingOpen, setUpcomingOpen] = useState(true)
   const [pastOpen, setPastOpen] = useState(false)
-  const [search, setSearch] = useState('')
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
-  const [appStatusFilter, setAppStatusFilter] = useState('all')
+  const [search, setSearch] = useState(() => loadEventFilters().search ?? '')
+  const [dateFrom, setDateFrom] = useState(() => loadEventFilters().dateFrom ?? '')
+  const [dateTo, setDateTo] = useState(() => loadEventFilters().dateTo ?? '')
+  const [statusFilter, setStatusFilter] = useState(() => loadEventFilters().statusFilter ?? 'all')
+  const [appStatusFilter, setAppStatusFilter] = useState(() => loadEventFilters().appStatusFilter ?? 'all')
+
+  useEffect(() => {
+    sessionStorage.setItem(FILTERS_KEY, JSON.stringify({ search, dateFrom, dateTo, statusFilter, appStatusFilter }))
+  }, [search, dateFrom, dateTo, statusFilter, appStatusFilter])
+
+  const hasActiveFilters = search.trim() || dateFrom || dateTo || statusFilter !== 'all' || appStatusFilter !== 'all'
+
+  function resetFilters() {
+    setSearch('')
+    setDateFrom('')
+    setDateTo('')
+    setStatusFilter('all')
+    setAppStatusFilter('all')
+    sessionStorage.removeItem(FILTERS_KEY)
+  }
 
   const filtered = events.filter(e => {
     const matchesSearch = !search.trim() ||
@@ -175,6 +198,15 @@ export function EventList({ initialEvents }: { initialEvents: Event[] }) {
             <X size={13} />
           </button>
         )}
+
+        {hasActiveFilters && (
+          <button
+            onClick={resetFilters}
+            className="h-8 inline-flex items-center rounded-md px-3 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X size={12} className="mr-1" />Reset filters
+          </button>
+        )}
       </div>
 
       {/* Bulk toolbar — always rendered to reserve space */}
@@ -285,6 +317,13 @@ export function EventList({ initialEvents }: { initialEvents: Event[] }) {
                 </div>
                 <span className="text-sm text-muted-foreground shrink-0">{formatEventDate(event.date_start, event.date_end)}</span>
               </Link>
+              {event.web_address && (
+                <a href={event.web_address} target="_blank" rel="noopener noreferrer"
+                  onClick={e => e.stopPropagation()}
+                  className="text-muted-foreground hover:text-foreground transition-colors shrink-0">
+                  <ExternalLink size={13} />
+                </a>
+              )}
             </div>
           )
         }

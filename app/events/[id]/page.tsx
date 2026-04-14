@@ -2,7 +2,7 @@ import { supabase } from '@/lib/supabase'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ChevronLeft, Edit, MapPin } from 'lucide-react'
+import { ChevronLeft, Edit, MapPin, ExternalLink } from 'lucide-react'
 import { formatEventDate } from '@/lib/utils'
 import { getAppStatusStyle } from '@/lib/event-app-status'
 import { LinkButton } from '@/components/ui/link-button'
@@ -55,6 +55,12 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {event.web_address && (
+            <a href={event.web_address} target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center justify-center h-8 w-8 rounded-md border border-input bg-background hover:bg-muted transition-colors">
+              <ExternalLink size={14} />
+            </a>
+          )}
           <ToggleEventActiveButton eventId={id} isActive={event.is_active ?? true} />
           <LinkButton href={`/events/${id}/edit`} size="sm" variant="outline"><Edit size={14} className="mr-1" />Edit</LinkButton>
           <DeleteEventButton eventId={id} />

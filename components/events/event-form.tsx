@@ -25,6 +25,7 @@ export function EventForm({ event, pastLocations = [] }: { event?: Event; pastLo
     tax_rate: event?.tax_rate?.toString() ?? '0',
     app_status: event?.app_status ?? 'Unreleased',
     notes: event?.notes ?? '',
+    web_address: event?.web_address ?? '',
   })
   const set = (f: string, v: string) => setForm(x => ({ ...x, [f]: v }))
   const [showSuggestions, setShowSuggestions] = useState(false)
@@ -57,6 +58,7 @@ export function EventForm({ event, pastLocations = [] }: { event?: Event; pastLo
       tax_rate: parseFloat(form.tax_rate) || 0,
       app_status: form.app_status,
       notes: form.notes || null,
+      web_address: form.web_address || null,
     }
     if (event) {
       const { error } = await supabase.from('event').update(payload).eq('id', event.id)
@@ -132,6 +134,11 @@ export function EventForm({ event, pastLocations = [] }: { event?: Event; pastLo
             </div>
           )}
         </div>
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="web_address">Website</Label>
+        <Input id="web_address" type="url" value={form.web_address}
+          onChange={e => set('web_address', e.target.value)} placeholder="https://…" />
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="tax_rate">Sales Tax Rate</Label>
