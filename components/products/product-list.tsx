@@ -61,6 +61,13 @@ export function ProductList({ products: initialProducts, categories }: ProductLi
   }
 
   async function toggleActive(id: string, current: boolean) {
+    if (!current) {
+      const product = products.find(p => p.id === id)
+      if (!product?.category_id) {
+        toast.error('The product must be assigned to a category before it can be reactivated.')
+        return
+      }
+    }
     setTogglingId(id)
     const { error } = await supabase.from('product').update({ is_active: !current }).eq('id', id)
     if (error) { toast.error(error.message); setTogglingId(null); return }
@@ -69,6 +76,13 @@ export function ProductList({ products: initialProducts, categories }: ProductLi
   }
 
   async function bulkSetActive(active: boolean) {
+    if (active) {
+      const missingCategory = selectedProducts.filter(p => !p.is_active && !p.category_id)
+      if (missingCategory.length > 0) {
+        toast.error(`${missingCategory.length} product${missingCategory.length > 1 ? 's' : ''} must be assigned to a category before being reactivated.`)
+        return
+      }
+    }
     setLoading(true)
     const ids = [...selected]
     const { error } = await supabase.from('product').update({ is_active: active }).in('id', ids)
@@ -87,13 +101,18 @@ export function ProductList({ products: initialProducts, categories }: ProductLi
       .update({ category_id: newCategoryId === 'none' ? null : newCategoryId || null })
       .in('id', ids)
     if (error) { toast.error(error.message); setLoading(false); return }
-    const cat = categories.find(c => c.id === newCategoryId)
+    const newCatIdResolved = newCategoryId === 'none' ? null : newCategoryId || null
+    const cat = categories.find(c => c.id === newCatIdResolved)
+    setProducts(ps => ps.map(p =>
+      selected.has(p.id)
+        ? { ...p, category_id: newCatIdResolved, category: cat ? { name: cat.name, base_price: cat.base_price } : null }
+        : p
+    ))
     toast.success(`Updated ${ids.length} product${ids.length > 1 ? 's' : ''} → ${cat?.name ?? 'No category'}`)
     setCategoryDialogOpen(false)
     setSelected(new Set())
     setNewCategoryId('')
     setLoading(false)
-    router.refresh()
   }
 
   async function deleteSelected() {
@@ -159,8 +178,12 @@ export function ProductList({ products: initialProducts, categories }: ProductLi
             key={product.id}
             className={cn(
               'border rounded-lg p-4 flex gap-3 relative transition-colors',
-              selected.has(product.id) ? 'border-primary bg-primary/5' : 'hover:bg-muted/50',
-              !product.is_active && 'opacity-50'
+              selected.has(product.id)
+                ? 'border-primary bg-primary/5'
+                : !product.is_active && !product.category_id
+                  ? 'border-destructive bg-destructive/5'
+                  : 'hover:bg-muted/50',
+              !product.is_active && 'opacity-60'
             )}
           >
             {/* Checkbox */}
