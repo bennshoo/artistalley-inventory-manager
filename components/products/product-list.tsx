@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/u
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { ProductImage } from '@/components/products/product-image'
 import { toast } from 'sonner'
-import { Loader2, Trash2, Tag, X, PowerOff, Power } from 'lucide-react'
+import { Loader2, Trash2, Tag, X, PowerOff, Power, Search } from 'lucide-react'
+import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { Category } from '@/lib/database.types'
 
@@ -40,8 +41,17 @@ export function ProductList({ products: initialProducts, categories }: ProductLi
   const [newCategoryId, setNewCategoryId] = useState('')
   const [loading, setLoading] = useState(false)
   const [togglingId, setTogglingId] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
 
-  const allSelected = products.length > 0 && selected.size === products.length
+  const filtered = search.trim()
+    ? products.filter(p =>
+        p.name.toLowerCase().includes(search.toLowerCase()) ||
+        p.sku.toLowerCase().includes(search.toLowerCase()) ||
+        p.category?.name.toLowerCase().includes(search.toLowerCase())
+      )
+    : products
+
+  const allSelected = filtered.length > 0 && filtered.every(p => selected.has(p.id))
   const someSelected = selected.size > 0
   const selectedProducts = products.filter(p => selected.has(p.id))
   const allSelectedActive = selectedProducts.every(p => p.is_active)
@@ -49,7 +59,7 @@ export function ProductList({ products: initialProducts, categories }: ProductLi
 
   function toggleAll() {
     if (allSelected) setSelected(new Set())
-    else setSelected(new Set(products.map(p => p.id)))
+    else setSelected(new Set(filtered.map(p => p.id)))
   }
 
   function toggle(id: string) {
@@ -130,6 +140,17 @@ export function ProductList({ products: initialProducts, categories }: ProductLi
 
   return (
     <div className="space-y-3">
+      {/* Search */}
+      <div className="relative">
+        <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+        <Input
+          placeholder="Search by name, SKU, or category…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="pl-8"
+        />
+      </div>
+
       {/* Bulk action toolbar */}
       <div className={cn(
         'flex items-center gap-3 rounded-lg border px-4 py-2.5 bg-muted/50 transition-all',
@@ -160,7 +181,7 @@ export function ProductList({ products: initialProducts, categories }: ProductLi
       </div>
 
       {/* Select all row */}
-      {products.length > 0 && (
+      {filtered.length > 0 && (
         <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer w-fit">
           <input
             type="checkbox"
@@ -174,7 +195,7 @@ export function ProductList({ products: initialProducts, categories }: ProductLi
 
       {/* Product grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {products.map(product => (
+        {filtered.map(product => (
           <div
             key={product.id}
             className={cn(
@@ -243,9 +264,12 @@ export function ProductList({ products: initialProducts, categories }: ProductLi
           </div>
         ))}
 
-        {products.length === 0 && (
+        {filtered.length === 0 && (
           <div className="col-span-3 text-center py-12 text-muted-foreground text-sm">
-            No products yet. <Link href="/products/new" className="underline">Add one.</Link>
+            {search.trim()
+              ? `No products match "${search}".`
+              : <>No products yet. <Link href="/products/new" className="underline">Add one.</Link></>
+            }
           </div>
         )}
       </div>

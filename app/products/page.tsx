@@ -19,7 +19,7 @@ export default async function ProductsPage() {
           <h1 className="text-2xl font-semibold">Products</h1>
           <p className="text-muted-foreground text-sm">{products?.length ?? 0} items</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
           <CsvImportDialog categories={categories ?? []} />
           <LinkButton href="/products/new" size="sm"><Plus size={14} className="mr-1" />Add Product</LinkButton>
         </div>
