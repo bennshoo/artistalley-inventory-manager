@@ -12,7 +12,7 @@ export default async function AdjustmentsPage() {
   ])
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Inventory Adjustments</h1>
         <p className="text-muted-foreground text-sm">Manually correct stock levels</p>

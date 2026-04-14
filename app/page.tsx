@@ -3,13 +3,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
 import { Package, AlertTriangle, CalendarDays, TrendingUp } from 'lucide-react'
+import { formatEventDate } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
 
 export default async function DashboardPage() {
   const [productsRes, eventsRes, salesRes] = await Promise.all([
     supabase.from('product').select('id, name, quantity, sku'),
-    supabase.from('event').select('id, name, date, location').order('date', { ascending: false }).limit(5),
+    supabase.from('event').select('id, name, date_start, date_end, location').order('date_start', { ascending: false }).limit(5),
     supabase.from('sale').select('qty_sold, unit_cost'),
   ])
 
@@ -23,7 +24,7 @@ export default async function DashboardPage() {
   const totalSold = sales.reduce((s, r) => s + r.qty_sold, 0)
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Dashboard</h1>
         <p className="text-muted-foreground text-sm">Inventory overview</p>
@@ -108,7 +109,9 @@ export default async function DashboardPage() {
             {events.map(e => (
               <div key={e.id} className="flex items-center justify-between text-sm">
                 <Link href={`/events/${e.id}`} className="hover:underline">{e.name}</Link>
-                <span className="text-muted-foreground text-xs">{e.date}</span>
+                <span className="text-muted-foreground text-xs">
+                  {formatEventDate((e as any).date_start, (e as any).date_end)}
+                </span>
               </div>
             ))}
           </CardContent>

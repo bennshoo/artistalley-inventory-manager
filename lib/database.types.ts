@@ -57,15 +57,15 @@ export interface Database {
       }
       event: {
         Row: {
-          id: string; name: string; date: string; location: string | null
+          id: string; name: string; date_start: string; date_end: string; location: string | null
           tax_rate: number; created_at: string
         }
         Insert: {
-          id?: string; name: string; date: string; location?: string | null
+          id?: string; name: string; date_start: string; date_end: string; location?: string | null
           tax_rate?: number; created_at?: string
         }
         Update: {
-          id?: string; name?: string; date?: string; location?: string | null
+          id?: string; name?: string; date_start?: string; date_end?: string; location?: string | null
           tax_rate?: number; created_at?: string
         }
       }

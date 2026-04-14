@@ -3,10 +3,12 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChevronLeft, Edit, MapPin } from 'lucide-react'
+import { formatEventDate } from '@/lib/utils'
 import { LinkButton } from '@/components/ui/link-button'
 import { RevenueLogger } from '@/components/events/revenue-logger'
 import { CostLogger } from '@/components/events/cost-logger'
 import { SalesSheetManager } from '@/components/events/sales-sheet-manager'
+import { DeleteEventButton } from '@/components/events/delete-event-button'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,7 +33,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
   const netProfit = totalRevenue - totalCosts
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6">
       <Link href="/events" className="text-sm text-muted-foreground flex items-center gap-1 hover:text-foreground">
         <ChevronLeft size={14} /> Events
       </Link>
@@ -40,12 +42,15 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
         <div>
           <h1 className="text-2xl font-semibold">{event.name}</h1>
           <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
-            <span>{event.date}</span>
+            <span>{formatEventDate(event.date_start, event.date_end)}</span>
             {event.location && <span className="flex items-center gap-1"><MapPin size={12} />{event.location}</span>}
             {event.tax_rate > 0 && <span>{(event.tax_rate * 100).toFixed(2)}% tax</span>}
           </div>
         </div>
-        <LinkButton href={`/events/${id}/edit`} size="sm" variant="outline"><Edit size={14} className="mr-1" />Edit</LinkButton>
+        <div className="flex items-center gap-2">
+          <LinkButton href={`/events/${id}/edit`} size="sm" variant="outline"><Edit size={14} className="mr-1" />Edit</LinkButton>
+          <DeleteEventButton eventId={id} />
+        </div>
       </div>
 
       {/* Summary */}
@@ -94,7 +99,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
       <Card>
         <CardHeader><CardTitle className="text-sm">Sales Sheet</CardTitle></CardHeader>
         <CardContent>
-          <SalesSheetManager eventId={id} eventDate={event.date} initialSheets={sheets} />
+          <SalesSheetManager eventId={id} eventDate={event.date_start} initialSheets={sheets} />
         </CardContent>
       </Card>
     </div>

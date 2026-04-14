@@ -27,7 +27,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   const adjustments = adjustmentsRes.data ?? []
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6">
       <Link href="/products" className="text-sm text-muted-foreground flex items-center gap-1 hover:text-foreground">
         <ChevronLeft size={14} /> Products
       </Link>

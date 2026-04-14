@@ -1,14 +1,15 @@
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { formatEventDate } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
 
 export default async function ReportsPage() {
   const [salesRes, productsRes, eventsRes, revenueRes, costsRes] = await Promise.all([
-    supabase.from('sale').select('*, product(name, sku, category(name)), event(name, date)').order('date', { ascending: false }),
+    supabase.from('sale').select('*, product(name, sku, category(name)), event(name, date_start, date_end)').order('date', { ascending: false }),
     supabase.from('product').select('id, name, sku, quantity, category(name)').order('quantity'),
-    supabase.from('event').select('id, name, date').order('date', { ascending: false }),
+    supabase.from('event').select('id, name, date_start, date_end').order('date_start', { ascending: false }),
     supabase.from('event_revenue').select('*, event(name)'),
     supabase.from('cost').select('*, event(name)'),
   ])
@@ -47,7 +48,7 @@ export default async function ReportsPage() {
   })
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Reports</h1>
         <p className="text-muted-foreground text-sm">Business insights across all events</p>
@@ -63,7 +64,9 @@ export default async function ReportsPage() {
               <div key={ev.id} className="flex items-center justify-between text-sm border-b pb-2">
                 <div>
                   <span className="font-medium">{ev.name}</span>
-                  <span className="text-muted-foreground text-xs ml-2">{ev.date}</span>
+                  <span className="text-muted-foreground text-xs ml-2">
+                    {formatEventDate(ev.date_start, ev.date_end)}
+                  </span>
                 </div>
                 <div className="flex gap-4 text-xs">
                   <span className="text-green-700">+${ev.totalRev.toFixed(2)}</span>

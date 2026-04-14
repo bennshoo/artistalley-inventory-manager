@@ -13,7 +13,7 @@ export default async function SuppliersPage() {
   ])
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Suppliers & Restocks</h1>
         <LinkButton href="/restocks/new" size="sm"><Plus size={14} className="mr-1" />Log Restock</LinkButton>
