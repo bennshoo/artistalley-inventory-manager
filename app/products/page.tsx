@@ -7,9 +7,10 @@ import { CsvImportDialog } from '@/components/products/csv-import-dialog'
 export const dynamic = 'force-dynamic'
 
 export default async function ProductsPage() {
-  const [{ data: products }, { data: categories }] = await Promise.all([
-    supabase.from('product').select('*, category(name, base_price)').order('name'),
+  const [{ data: products }, { data: categories }, { data: tags }] = await Promise.all([
+    supabase.from('product').select('*, category(name, base_price), product_tag(tag_id)').order('name'),
     supabase.from('category').select('*').order('name'),
+    supabase.from('tag').select('*').order('name'),
   ])
 
   return (
@@ -25,7 +26,7 @@ export default async function ProductsPage() {
         </div>
       </div>
 
-      <ProductList products={(products ?? []) as any} categories={categories ?? []} />
+      <ProductList products={(products ?? []) as any} categories={categories ?? []} tags={tags ?? []} />
     </div>
   )
 }

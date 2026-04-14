@@ -13,7 +13,8 @@ import { toast } from 'sonner'
 import { Loader2, Trash2, Tag, X, PowerOff, Power, Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
-import { Category } from '@/lib/database.types'
+import { Category, Tag as TagType } from '@/lib/database.types'
+import { getTagColor } from '@/lib/tag-colors'
 
 interface Product {
   id: string
@@ -24,14 +25,16 @@ interface Product {
   is_active: boolean
   category_id: string | null
   category: { name: string; base_price: number } | null
+  product_tag: { tag_id: string }[]
 }
 
 interface ProductListProps {
   products: Product[]
   categories: Category[]
+  tags: TagType[]
 }
 
-export function ProductList({ products: initialProducts, categories }: ProductListProps) {
+export function ProductList({ products: initialProducts, categories, tags }: ProductListProps) {
   const router = useRouter()
   const [products, setProducts] = useState(initialProducts)
   useEffect(() => { setProducts(initialProducts) }, [initialProducts])
@@ -42,14 +45,31 @@ export function ProductList({ products: initialProducts, categories }: ProductLi
   const [loading, setLoading] = useState(false)
   const [togglingId, setTogglingId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const [activeTagIds, setActiveTagIds] = useState<Set<string>>(new Set())
+  const [tagWarningOpen, setTagWarningOpen] = useState(false)
+  const [tagEditOpen, setTagEditOpen] = useState(false)
+  const [draftTagIds, setDraftTagIds] = useState<Set<string>>(new Set())
 
-  const filtered = search.trim()
-    ? products.filter(p =>
-        p.name.toLowerCase().includes(search.toLowerCase()) ||
-        p.sku.toLowerCase().includes(search.toLowerCase()) ||
-        p.category?.name.toLowerCase().includes(search.toLowerCase())
-      )
-    : products
+  function toggleTagFilter(id: string) {
+    setActiveTagIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const filtered = products.filter(p => {
+    const matchesSearch = !search.trim() ||
+      p.name.toLowerCase().includes(search.toLowerCase()) ||
+      p.sku.toLowerCase().includes(search.toLowerCase()) ||
+      p.category?.name.toLowerCase().includes(search.toLowerCase())
+
+    const matchesTags = activeTagIds.size === 0 ||
+      p.product_tag.some(pt => activeTagIds.has(pt.tag_id))
+
+    return matchesSearch && matchesTags
+  })
 
   const allSelected = filtered.length > 0 && filtered.every(p => selected.has(p.id))
   const someSelected = selected.size > 0
@@ -126,6 +146,44 @@ export function ProductList({ products: initialProducts, categories }: ProductLi
     setLoading(false)
   }
 
+  function openModifyTags() {
+    const tagSets = selectedProducts.map(p => new Set(p.product_tag.map(pt => pt.tag_id)))
+    // Compute intersection for initial draft state
+    const intersection = new Set(
+      tags.filter(t => tagSets.every(s => s.has(t.id))).map(t => t.id)
+    )
+    setDraftTagIds(intersection)
+    // Check if all selected products have identical tag sets
+    const first = tagSets[0] ?? new Set()
+    const different = tagSets.some(s => s.size !== first.size || [...s].some(id => !first.has(id)))
+    if (different) {
+      setTagWarningOpen(true)
+    } else {
+      setTagEditOpen(true)
+    }
+  }
+
+  async function applyTags() {
+    setLoading(true)
+    const ids = [...selected]
+    // Delete existing tags for all selected products then re-insert
+    const { error: delError } = await supabase.from('product_tag').delete().in('product_id', ids)
+    if (delError) { toast.error(delError.message); setLoading(false); return }
+
+    if (draftTagIds.size > 0) {
+      const rows = ids.flatMap(product_id => [...draftTagIds].map(tag_id => ({ product_id, tag_id })))
+      const { error: insError } = await supabase.from('product_tag').insert(rows)
+      if (insError) { toast.error(insError.message); setLoading(false); return }
+    }
+
+    const newProductTags = [...draftTagIds].map(tag_id => ({ tag_id }))
+    setProducts(ps => ps.map(p => selected.has(p.id) ? { ...p, product_tag: newProductTags } : p))
+    toast.success(`Tags updated for ${ids.length} product${ids.length > 1 ? 's' : ''}`)
+    setTagEditOpen(false)
+    setSelected(new Set())
+    setLoading(false)
+  }
+
   async function deleteSelected() {
     setLoading(true)
     const ids = [...selected]
@@ -151,6 +209,39 @@ export function ProductList({ products: initialProducts, categories }: ProductLi
         />
       </div>
 
+      {/* Tag filters */}
+      {tags.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 items-center">
+          <span className="text-xs text-muted-foreground">Filter:</span>
+          {tags.map(t => {
+            const color = getTagColor(t.color)
+            const active = activeTagIds.has(t.id)
+            return (
+              <button
+                key={t.id}
+                onClick={() => toggleTagFilter(t.id)}
+                className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium transition-opacity border-2"
+                style={active
+                  ? { backgroundColor: color.bg, color: color.text, borderColor: color.bg }
+                  : { backgroundColor: 'transparent', color: color.bg, borderColor: color.bg, opacity: 0.6 }
+                }
+              >
+                {t.name}
+                {active && <X size={10} className="ml-1 opacity-70" />}
+              </button>
+            )
+          })}
+          {activeTagIds.size > 0 && (
+            <button
+              onClick={() => setActiveTagIds(new Set())}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Bulk action toolbar */}
       <div className={cn(
         'flex items-center gap-3 rounded-lg border px-4 py-2.5 bg-muted/50 transition-all',
@@ -160,6 +251,9 @@ export function ProductList({ products: initialProducts, categories }: ProductLi
         <div className="flex gap-2 ml-auto flex-wrap">
           <Button size="sm" variant="outline" onClick={() => setCategoryDialogOpen(true)}>
             <Tag size={13} className="mr-1" />Change Category
+          </Button>
+          <Button size="sm" variant="outline" onClick={openModifyTags}>
+            <Tag size={13} className="mr-1" />Modify Tags
           </Button>
           {!allSelectedActive && (
             <Button size="sm" variant="outline" onClick={() => bulkSetActive(true)} disabled={loading}>
@@ -183,91 +277,115 @@ export function ProductList({ products: initialProducts, categories }: ProductLi
       {/* Select all row */}
       {filtered.length > 0 && (
         <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer w-fit">
-          <input
-            type="checkbox"
-            checked={allSelected}
-            onChange={toggleAll}
-            className="rounded"
-          />
+          <input type="checkbox" checked={allSelected} onChange={toggleAll} className="rounded" />
           {allSelected ? 'Deselect all' : 'Select all'}
         </label>
       )}
 
       {/* Product grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filtered.map(product => (
-          <div
-            key={product.id}
-            className={cn(
-              'border rounded-lg p-4 flex gap-3 relative transition-colors',
-              selected.has(product.id)
-                ? 'border-primary bg-primary/5'
-                : !product.is_active && !product.category_id
-                  ? 'border-destructive bg-destructive/5'
-                  : 'hover:bg-muted/50',
-              !product.is_active && 'opacity-60'
-            )}
-          >
-            {/* Checkbox */}
-            <input
-              type="checkbox"
-              checked={selected.has(product.id)}
-              onChange={() => toggle(product.id)}
-              className="absolute top-3 right-3 rounded cursor-pointer"
-              onClick={e => e.stopPropagation()}
-            />
+        {filtered.map(product => {
+          const productTags = product.product_tag
+            .map(pt => tags.find(t => t.id === pt.tag_id))
+            .filter(Boolean) as TagType[]
 
-            {/* Active toggle */}
-            <button
-              type="button"
-              onClick={e => { e.stopPropagation(); toggleActive(product.id, product.is_active) }}
-              disabled={togglingId === product.id}
+          return (
+            <div
+              key={product.id}
               className={cn(
-                'absolute bottom-3 right-3 transition-colors',
-                product.is_active ? 'text-green-500 hover:text-muted-foreground' : 'text-muted-foreground hover:text-green-500'
+                'border rounded-lg p-4 flex gap-3 relative transition-colors',
+                selected.has(product.id)
+                  ? 'border-primary bg-primary/5'
+                  : !product.is_active && !product.category_id
+                    ? 'border-destructive bg-destructive/5'
+                    : !product.is_active
+                      ? 'bg-muted/60 border-muted-foreground/20'
+                      : 'hover:bg-muted/50'
               )}
-              title={product.is_active ? 'Deactivate' : 'Activate'}
             >
-              {togglingId === product.id
-                ? <Loader2 size={13} className="animate-spin" />
-                : product.is_active ? <Power size={13} /> : <PowerOff size={13} />
-              }
-            </button>
+              {/* Checkbox */}
+              <input
+                type="checkbox"
+                checked={selected.has(product.id)}
+                onChange={() => toggle(product.id)}
+                className="absolute top-3 right-3 rounded cursor-pointer"
+                onClick={e => e.stopPropagation()}
+              />
 
-            {/* Clicking the card body navigates */}
-            <Link
-              href={`/products/${product.id}`}
-              className="flex gap-3 flex-1 min-w-0"
-              onClick={e => { if (selected.size > 0) e.preventDefault(); toggle(product.id) }}
-            >
-              <ProductImage url={product.image_url} name={product.name} size={56} />
-              <div className="flex-1 min-w-0 pr-4">
-                <p className="font-medium text-sm truncate">{product.name}</p>
-                <p className="text-xs text-muted-foreground">{product.sku}</p>
-                <div className="flex items-center gap-2 mt-1">
-                  {product.category ? (
-                    <Badge variant="secondary" className="text-xs px-1.5 py-0">
-                      {product.category.name} · ${product.category.base_price.toFixed(2)}
-                    </Badge>
-                  ) : (
-                    <span className="text-xs text-muted-foreground">No category</span>
+              {/* Active toggle */}
+              <button
+                type="button"
+                onClick={e => { e.stopPropagation(); toggleActive(product.id, product.is_active) }}
+                disabled={togglingId === product.id}
+                className={cn(
+                  'absolute bottom-3 right-3 transition-colors',
+                  product.is_active ? 'text-green-500 hover:text-muted-foreground' : 'text-muted-foreground hover:text-green-500'
+                )}
+                title={product.is_active ? 'Deactivate' : 'Activate'}
+              >
+                {togglingId === product.id
+                  ? <Loader2 size={13} className="animate-spin" />
+                  : product.is_active ? <Power size={13} /> : <PowerOff size={13} />
+                }
+              </button>
+
+              <Link
+                href={`/products/${product.id}`}
+                className="flex gap-3 flex-1 min-w-0"
+                onClick={e => { if (selected.size > 0) e.preventDefault(); toggle(product.id) }}
+              >
+                <div className={cn(!product.is_active && 'grayscale opacity-50')}>
+                  <ProductImage url={product.image_url} name={product.name} size={56} />
+                </div>
+                <div className="flex-1 min-w-0 pr-4">
+                  <div className="flex items-center gap-1.5">
+                    <p className={cn('font-medium text-sm truncate', !product.is_active && 'text-muted-foreground')}>{product.name}</p>
+                    {!product.is_active && (
+                      <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground border rounded px-1 py-0">inactive</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">{product.sku}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    {product.category ? (
+                      <Badge variant="secondary" className="text-xs px-1.5 py-0">
+                        {product.category.name} · ${product.category.base_price.toFixed(2)}
+                      </Badge>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">No category</span>
+                    )}
+                  </div>
+                  <Badge
+                    variant={product.quantity === 0 ? 'destructive' : product.quantity <= 5 ? 'outline' : 'secondary'}
+                    className="text-xs mt-1"
+                  >
+                    {product.quantity} in stock
+                  </Badge>
+                  {productTags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {productTags.map(t => {
+                        const color = getTagColor(t.color)
+                        return (
+                          <span
+                            key={t.id}
+                            className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
+                            style={{ backgroundColor: color.bg, color: color.text }}
+                          >
+                            {t.name}
+                          </span>
+                        )
+                      })}
+                    </div>
                   )}
                 </div>
-                <Badge
-                  variant={product.quantity === 0 ? 'destructive' : product.quantity <= 5 ? 'outline' : 'secondary'}
-                  className="text-xs mt-1"
-                >
-                  {product.quantity} in stock
-                </Badge>
-              </div>
-            </Link>
-          </div>
-        ))}
+              </Link>
+            </div>
+          )
+        })}
 
         {filtered.length === 0 && (
           <div className="col-span-3 text-center py-12 text-muted-foreground text-sm">
-            {search.trim()
-              ? `No products match "${search}".`
+            {search.trim() || activeTagIds.size > 0
+              ? 'No products match the current filters.'
               : <>No products yet. <Link href="/products/new" className="underline">Add one.</Link></>
             }
           </div>
@@ -277,9 +395,7 @@ export function ProductList({ products: initialProducts, categories }: ProductLi
       {/* Change category dialog */}
       <Dialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Change Category</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Change Category</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">
             Apply to {selected.size} selected product{selected.size > 1 ? 's' : ''}.
           </p>
@@ -296,15 +412,75 @@ export function ProductList({ products: initialProducts, categories }: ProductLi
             <SelectContent className="w-full min-w-(--anchor-width)">
               <SelectItem value="none">— No category —</SelectItem>
               {categories.map(c => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.name} · ${c.base_price.toFixed(2)}
-                </SelectItem>
+                <SelectItem key={c.id} value={c.id}>{c.name} · ${c.base_price.toFixed(2)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
           <DialogFooter>
             <Button variant="outline" size="sm" onClick={() => setCategoryDialogOpen(false)}>Cancel</Button>
             <Button size="sm" onClick={applyCategory} disabled={loading}>
+              {loading && <Loader2 size={14} className="mr-1 animate-spin" />}Apply
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Tag warning dialog */}
+      <Dialog open={tagWarningOpen} onOpenChange={setTagWarningOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Different tags detected</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Currently selected products have different tags. Modifying tags will cause all selected products to have the same tags. Continue?
+          </p>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setTagWarningOpen(false)}>Cancel</Button>
+            <Button size="sm" onClick={() => { setTagWarningOpen(false); setTagEditOpen(true) }}>Continue</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Tag edit dialog */}
+      <Dialog open={tagEditOpen} onOpenChange={setTagEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Modify Tags</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Applying to {selected.size} product{selected.size > 1 ? 's' : ''}. Select the tags you want them to have.
+          </p>
+          {tags.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No tags exist yet. Add some in Categories &amp; Tags.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {tags.map(t => {
+                const color = getTagColor(t.color)
+                const active = draftTagIds.has(t.id)
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setDraftTagIds(prev => {
+                      const next = new Set(prev)
+                      if (next.has(t.id)) next.delete(t.id)
+                      else next.add(t.id)
+                      return next
+                    })}
+                    className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-medium transition-opacity border-2"
+                    style={active
+                      ? { backgroundColor: color.bg, color: color.text, borderColor: color.bg }
+                      : { backgroundColor: 'transparent', color: color.bg, borderColor: color.bg, opacity: 0.5 }
+                    }
+                  >
+                    {t.name}
+                    {active && <X size={11} className="opacity-70" />}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setTagEditOpen(false)}>Cancel</Button>
+            <Button size="sm" onClick={applyTags} disabled={loading}>
               {loading && <Loader2 size={14} className="mr-1 animate-spin" />}Apply
             </Button>
           </DialogFooter>

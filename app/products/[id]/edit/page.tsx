@@ -6,11 +6,15 @@ import { ChevronLeft } from 'lucide-react'
 
 export default async function EditProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const [productRes, categoriesRes] = await Promise.all([
+  const [productRes, categoriesRes, tagsRes, productTagsRes] = await Promise.all([
     supabase.from('product').select('*').eq('id', id).single(),
     supabase.from('category').select('*').order('name'),
+    supabase.from('tag').select('*').order('name'),
+    supabase.from('product_tag').select('tag_id').eq('product_id', id),
   ])
   if (!productRes.data) notFound()
+
+  const initialTagIds = (productTagsRes.data ?? []).map((r: any) => r.tag_id)
 
   return (
     <div className="space-y-4 max-w-xl">
@@ -18,7 +22,12 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
         <ChevronLeft size={14} /> {productRes.data.name}
       </Link>
       <h1 className="text-2xl font-semibold">Edit Product</h1>
-      <ProductForm categories={categoriesRes.data ?? []} product={productRes.data} />
+      <ProductForm
+        categories={categoriesRes.data ?? []}
+        tags={tagsRes.data ?? []}
+        product={productRes.data}
+        initialTagIds={initialTagIds}
+      />
     </div>
   )
 }

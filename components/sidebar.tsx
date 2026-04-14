@@ -11,7 +11,7 @@ import {
 const nav = [
   { href: '/', label: 'Dashboard', icon: Home },
   { href: '/products', label: 'Products', icon: Package },
-  { href: '/categories', label: 'Categories', icon: SlidersHorizontal },
+  { href: '/categories', label: 'Categories & Tags', icon: SlidersHorizontal },
   { href: '/suppliers', label: 'Suppliers & Restocks', icon: Truck },
   { href: '/events', label: 'Events', icon: CalendarDays },
   { href: '/adjustments', label: 'Adjustments', icon: SlidersHorizontal },

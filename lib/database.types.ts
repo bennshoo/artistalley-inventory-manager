@@ -111,6 +111,16 @@ export interface Database {
           event_id?: string; created_at?: string
         }
       }
+      tag: {
+        Row: { id: string; name: string; color: string; created_at: string }
+        Insert: { id?: string; name: string; color?: string; created_at?: string }
+        Update: { id?: string; name?: string; color?: string; created_at?: string }
+      }
+      product_tag: {
+        Row: { product_id: string; tag_id: string }
+        Insert: { product_id: string; tag_id: string }
+        Update: { product_id?: string; tag_id?: string }
+      }
       sales_sheet_row: {
         Row: {
           id: string; qty_sold: number; unit_cost: number; notes: string | null
@@ -152,6 +162,7 @@ export type InventoryAdjustment = Database['public']['Tables']['inventory_adjust
 export type Event = Database['public']['Tables']['event']['Row']
 export type EventRevenue = Database['public']['Tables']['event_revenue']['Row']
 export type Cost = Database['public']['Tables']['cost']['Row']
+export type Tag = Database['public']['Tables']['tag']['Row']
 export type SalesSheet = Database['public']['Tables']['sales_sheet']['Row']
 export type SalesSheetRow = Database['public']['Tables']['sales_sheet_row']['Row']
 export type Sale = Database['public']['Tables']['sale']['Row']

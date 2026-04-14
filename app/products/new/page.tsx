@@ -4,7 +4,10 @@ import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 
 export default async function NewProductPage() {
-  const { data: categories } = await supabase.from('category').select('*').order('name')
+  const [{ data: categories }, { data: tags }] = await Promise.all([
+    supabase.from('category').select('*').order('name'),
+    supabase.from('tag').select('*').order('name'),
+  ])
 
   return (
     <div className="space-y-4 max-w-xl">
@@ -12,7 +15,7 @@ export default async function NewProductPage() {
         <ChevronLeft size={14} /> Products
       </Link>
       <h1 className="text-2xl font-semibold">New Product</h1>
-      <ProductForm categories={categories ?? []} />
+      <ProductForm categories={categories ?? []} tags={tags ?? []} />
     </div>
   )
 }
