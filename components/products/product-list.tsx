@@ -224,7 +224,7 @@ export function ProductList({ products: initialProducts, categories, tags }: Pro
         {/* Category dropdown */}
         <Select
           value={filterCategoryId || '__all__'}
-          onValueChange={v => setFilterCategoryId(v === '__all__' ? '' : v)}
+          onValueChange={v => setFilterCategoryId(v === '__all__' ? '' : (v ?? ''))}
         >
           <SelectTrigger className="h-8 w-44 text-xs">
             <span className={filterCategoryId ? 'text-xs' : 'text-xs text-muted-foreground'}>
