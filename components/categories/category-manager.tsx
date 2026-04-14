@@ -68,7 +68,7 @@ export function CategoryManager({ initialCategories }: { initialCategories: Cate
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 w-fit">
       {/* Existing categories */}
       <div className="space-y-1">
         {categories.map(c => (

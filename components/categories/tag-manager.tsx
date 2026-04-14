@@ -54,7 +54,7 @@ export function TagManager({ initialTags }: { initialTags: Tag[] }) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 w-fit">
       <div className="space-y-1">
         {tags.map(t => {
           const color = getTagColor(t.color)

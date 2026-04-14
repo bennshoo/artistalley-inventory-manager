@@ -5,13 +5,17 @@ import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { toast } from 'sonner'
 import { Cost } from '@/lib/database.types'
 import { Loader2, Trash2, Plus } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
-const COST_TYPES = ['table_fee', 'travel', 'hotel', 'supplies', 'supplier', 'other']
+const COST_TYPES = ['table_fee', 'travel', 'hotel', 'food', 'other']
+
+function formatCostType(type: string) {
+  return type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+}
 
 export function CostLogger({ eventId, initialCosts }: { eventId: string; initialCosts: Cost[] }) {
   const router = useRouter()
@@ -55,7 +59,7 @@ export function CostLogger({ eventId, initialCosts }: { eventId: string; initial
         {costs.map(c => (
           <div key={c.id} className="flex items-center justify-between text-xs border-b pb-1">
             <div>
-              <span className="font-medium capitalize">{c.type.replace('_', ' ')}</span>
+              <span className="font-medium">{formatCostType(c.type)}</span>
               {c.note && <span className="text-muted-foreground ml-2">{c.note}</span>}
             </div>
             <div className="flex items-center gap-2">
@@ -73,12 +77,15 @@ export function CostLogger({ eventId, initialCosts }: { eventId: string; initial
       {showForm ? (
         <div className="space-y-2 border rounded p-3">
           <Select value={form.type} onValueChange={v => set('type', v ?? '')}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 text-xs"><span className="text-xs">{formatCostType(form.type)}</span></SelectTrigger>
             <SelectContent>
-              {COST_TYPES.map(t => <SelectItem key={t} value={t} className="text-xs capitalize">{t.replace('_', ' ')}</SelectItem>)}
+              {COST_TYPES.map(t => <SelectItem key={t} value={t} className="text-xs">{formatCostType(t)}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Input type="number" step="0.01" placeholder="Amount" value={form.amount} onChange={e => set('amount', e.target.value)} className="h-8 text-xs" />
+          <div className="relative">
+            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">$</span>
+            <Input type="number" step="0.01" placeholder="0.00" value={form.amount} onChange={e => set('amount', e.target.value)} className="h-8 text-xs pl-5" />
+          </div>
           <Input placeholder="Note (optional)" value={form.note} onChange={e => set('note', e.target.value)} className="h-8 text-xs" />
           <div className="flex gap-2">
             <Button size="sm" onClick={addCost} disabled={saving} className="h-7 text-xs">
