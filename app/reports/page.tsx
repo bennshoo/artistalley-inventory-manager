@@ -61,7 +61,7 @@ export default async function ReportsPage() {
           {eventSummary.length === 0 && <p className="text-xs text-muted-foreground">No events yet.</p>}
           <div className="space-y-2">
             {eventSummary.map(ev => (
-              <div key={ev.id} className="flex items-center justify-between text-sm border-b pb-2">
+              <div key={ev.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between text-sm border-b pb-2 gap-1">
                 <div>
                   <span className="font-medium">{ev.name}</span>
                   <span className="text-muted-foreground text-xs ml-2">

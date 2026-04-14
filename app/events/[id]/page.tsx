@@ -41,10 +41,10 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
         <ChevronLeft size={14} /> Events
       </Link>
 
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">{event.name}</h1>
-          <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
+          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground mt-1">
             <span>{formatEventDate(event.date_start, event.date_end)}</span>
             {event.location && <span className="flex items-center gap-1"><MapPin size={12} />{event.location}</span>}
             {event.tax_rate > 0 && <span>{(event.tax_rate * 100).toFixed(2)}% tax</span>}
@@ -54,7 +54,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
             })()}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {event.web_address && (
             <a href={event.web_address} target="_blank" rel="noopener noreferrer"
               className="inline-flex items-center justify-center h-8 w-8 rounded-md border border-input bg-background hover:bg-muted transition-colors">
@@ -70,7 +70,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
       <EventNotesEditor eventId={id} initialNotes={event.notes} />
 
       {/* Summary */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card>
           <CardContent className="pt-4">
             <p className="text-xs text-muted-foreground">Total Revenue</p>

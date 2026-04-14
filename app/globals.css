@@ -128,3 +128,10 @@
     @apply font-sans;
   }
 }
+
+/* Push toasts above the mobile bottom nav */
+@media (max-width: 767px) {
+  [data-sonner-toaster] {
+    bottom: calc(56px + 1rem) !important;
+  }
+}

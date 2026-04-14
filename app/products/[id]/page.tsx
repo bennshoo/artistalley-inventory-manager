@@ -35,8 +35,8 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
 
       <div className="flex items-start gap-4">
         <ProductImage url={product.image_url} name={product.name} size={80} />
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold">{product.name}</h1>
             <Badge variant="outline" className="text-xs">{product.sku}</Badge>
           </div>
@@ -45,16 +45,16 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
               {product.category.name} · ${product.category.base_price.toFixed(2)}
             </Badge>
           )}
-          <div className="flex items-center gap-4 mt-2 text-sm">
+          <div className="flex flex-wrap items-center gap-2 mt-2">
             <Badge variant={product.quantity === 0 ? 'destructive' : product.quantity <= 5 ? 'outline' : 'secondary'}>
               {product.quantity} in stock
             </Badge>
+            <div className="flex gap-2">
+              <ToggleProductActiveButton productId={id} isActive={product.is_active} />
+              <LinkButton href={`/products/${id}/edit`} size="sm" variant="outline"><Edit size={14} className="mr-1" />Edit</LinkButton>
+              <DeleteProductButton id={id} />
+            </div>
           </div>
-        </div>
-        <div className="flex gap-2">
-          <ToggleProductActiveButton productId={id} isActive={product.is_active} />
-          <LinkButton href={`/products/${id}/edit`} size="sm" variant="outline"><Edit size={14} className="mr-1" />Edit</LinkButton>
-          <DeleteProductButton id={id} />
         </div>
       </div>
 

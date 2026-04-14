@@ -179,7 +179,7 @@ export function EventList({ initialEvents }: { initialEvents: Event[] }) {
           type="date"
           value={dateFrom}
           onChange={e => setDateFrom(e.target.value)}
-          className="h-8 w-38 text-xs"
+          className="h-8 w-36 min-w-0 text-xs"
           placeholder="From"
         />
         <span className="text-xs text-muted-foreground">–</span>
@@ -187,7 +187,7 @@ export function EventList({ initialEvents }: { initialEvents: Event[] }) {
           type="date"
           value={dateTo}
           onChange={e => setDateTo(e.target.value)}
-          className="h-8 w-38 text-xs"
+          className="h-8 w-36 min-w-0 text-xs"
           placeholder="To"
         />
         {(dateFrom || dateTo) && (

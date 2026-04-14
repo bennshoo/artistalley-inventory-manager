@@ -212,7 +212,7 @@ export function SalesSheetManager({ eventId, eventDate, initialSheets }: SalesSh
 
       <div className="space-y-2">
         {sheets.map(sheet => (
-          <div key={sheet.id} className="border rounded p-3 flex items-center justify-between">
+          <div key={sheet.id} className="border rounded p-3 flex flex-wrap items-center justify-between gap-2">
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-medium">
