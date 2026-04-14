@@ -11,6 +11,7 @@ import { CostLogger } from '@/components/events/cost-logger'
 import { SalesSheetManager } from '@/components/events/sales-sheet-manager'
 import { DeleteEventButton } from '@/components/events/delete-event-button'
 import { ToggleEventActiveButton } from '@/components/events/toggle-event-active-button'
+import { EventNotesEditor } from '@/components/events/event-notes-editor'
 
 export const dynamic = 'force-dynamic'
 
@@ -60,9 +61,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
         </div>
       </div>
 
-      {event.notes && (
-        <p className="text-sm text-muted-foreground whitespace-pre-wrap">{event.notes}</p>
-      )}
+      <EventNotesEditor eventId={id} initialNotes={event.notes} />
 
       {/* Summary */}
       <div className="grid grid-cols-3 gap-4">

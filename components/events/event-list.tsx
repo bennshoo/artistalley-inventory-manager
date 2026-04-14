@@ -67,15 +67,6 @@ export function EventList({ initialEvents }: { initialEvents: Event[] }) {
   const allSelectedActive = selectedEvents.every(e => e.is_active)
   const allSelectedInactive = selectedEvents.every(e => !e.is_active)
 
-  function toggleSelect(id: string, e: React.MouseEvent) {
-    e.preventDefault()
-    setSelected(prev => {
-      const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
-      return next
-    })
-  }
-
   function toggleAll() {
     if (selected.size === filtered.length) {
       setSelected(new Set())
@@ -228,7 +219,7 @@ export function EventList({ initialEvents }: { initialEvents: Event[] }) {
         <div className="flex items-center gap-2 px-1">
           <input
             type="checkbox"
-            className="h-4 w-4 rounded border-input cursor-pointer"
+            className="h-4 w-4 accent-primary cursor-pointer"
             checked={selected.size === filtered.length && filtered.length > 0}
             onChange={toggleAll}
           />
@@ -263,10 +254,16 @@ export function EventList({ initialEvents }: { initialEvents: Event[] }) {
             >
               <input
                 type="checkbox"
-                className="h-4 w-4 rounded border-input cursor-pointer shrink-0"
+                className="h-4 w-4 accent-primary cursor-pointer shrink-0"
                 checked={isSelected}
-                onChange={() => {}}
-                onClick={e => toggleSelect(event.id, e)}
+                onChange={e => {
+                  e.stopPropagation()
+                  setSelected(prev => {
+                    const next = new Set(prev)
+                    next.has(event.id) ? next.delete(event.id) : next.add(event.id)
+                    return next
+                  })
+                }}
               />
               <Link href={`/events/${event.id}`} className="flex items-center gap-4 flex-1 min-w-0">
                 <div className="flex-1 min-w-0">

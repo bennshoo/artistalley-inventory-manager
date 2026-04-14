@@ -10,7 +10,10 @@ export const dynamic = 'force-dynamic'
 export default async function DashboardPage() {
   const [productsRes, eventsRes, salesRes] = await Promise.all([
     supabase.from('product').select('id, name, quantity, sku'),
-    supabase.from('event').select('id, name, date_start, date_end, location').order('date_start', { ascending: false }).limit(5),
+    supabase.from('event').select('id, name, date_start, date_end, location')
+      .gte('date_end', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
+      .eq('app_status', 'Accepted')
+      .order('date_start', { ascending: true }),
     supabase.from('sale').select('qty_sold, unit_cost'),
   ])
 
@@ -106,14 +109,20 @@ export default async function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-2">
             {events.length === 0 && <p className="text-sm text-muted-foreground">No events yet.</p>}
-            {events.map(e => (
-              <div key={e.id} className="flex items-center justify-between text-sm">
-                <Link href={`/events/${e.id}`} className="hover:underline">{e.name}</Link>
-                <span className="text-muted-foreground text-xs">
-                  {formatEventDate((e as any).date_start, (e as any).date_end)}
-                </span>
-              </div>
-            ))}
+            {(() => {
+              const today = new Date().toISOString().split('T')[0]
+              return events.map(e => {
+                const isPast = (e as any).date_end < today
+                return (
+                  <div key={e.id} className={`flex items-center justify-between text-sm ${isPast ? 'opacity-50' : ''}`}>
+                    <Link href={`/events/${e.id}`} className="hover:underline">{e.name}</Link>
+                    <span className="text-muted-foreground text-xs shrink-0 ml-2">
+                      {formatEventDate((e as any).date_start, (e as any).date_end)}
+                    </span>
+                  </div>
+                )
+              })
+            })()}
           </CardContent>
         </Card>
       </div>
