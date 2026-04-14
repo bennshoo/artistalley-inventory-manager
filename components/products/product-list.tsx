@@ -56,8 +56,8 @@ export function ProductList({ products: initialProducts, categories, tags }: Pro
   const [tagWarningOpen, setTagWarningOpen] = useState(false)
   const [tagEditOpen, setTagEditOpen] = useState(false)
   const [draftTagIds, setDraftTagIds] = useState<Set<string>>(new Set())
-  const [showInactive, setShowInactive] = useState(() => loadProductFilters().showInactive ?? false)
-  const [showNeedsAttention, setShowNeedsAttention] = useState(() => loadProductFilters().showNeedsAttention ?? false)
+  const [showInactive, setShowInactive] = useState<boolean>(() => loadProductFilters().showInactive ?? false)
+  const [showNeedsAttention, setShowNeedsAttention] = useState<boolean>(() => loadProductFilters().showNeedsAttention ?? false)
   const [filterCategoryId, setFilterCategoryId] = useState<string>(() => loadProductFilters().filterCategoryId ?? '')
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false)
 
