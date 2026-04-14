@@ -58,15 +58,15 @@ export interface Database {
       event: {
         Row: {
           id: string; name: string; date_start: string; date_end: string; location: string | null
-          tax_rate: number; created_at: string
+          tax_rate: number; is_active: boolean; app_status: string; created_at: string
         }
         Insert: {
           id?: string; name: string; date_start: string; date_end: string; location?: string | null
-          tax_rate?: number; created_at?: string
+          tax_rate?: number; is_active?: boolean; app_status?: string; created_at?: string
         }
         Update: {
           id?: string; name?: string; date_start?: string; date_end?: string; location?: string | null
-          tax_rate?: number; created_at?: string
+          tax_rate?: number; is_active?: boolean; app_status?: string; created_at?: string
         }
       }
       event_revenue: {
@@ -99,15 +99,15 @@ export interface Database {
       }
       sales_sheet: {
         Row: {
-          id: string; generated_at: string; status: 'pending' | 'imported'
+          id: string; generated_at: string; status: 'pending' | 'reconciled'
           event_id: string; created_at: string
         }
         Insert: {
-          id?: string; generated_at?: string; status?: 'pending' | 'imported'
+          id?: string; generated_at?: string; status?: 'pending' | 'reconciled'
           event_id: string; created_at?: string
         }
         Update: {
-          id?: string; generated_at?: string; status?: 'pending' | 'imported'
+          id?: string; generated_at?: string; status?: 'pending' | 'reconciled'
           event_id?: string; created_at?: string
         }
       }

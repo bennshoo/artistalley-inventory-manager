@@ -1,13 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 import { SalesSheet } from '@/lib/database.types'
-import { Loader2, Download, Upload, FileSpreadsheet } from 'lucide-react'
+import { Loader2, Upload, FileSpreadsheet } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import * as XLSX from 'xlsx'
 
@@ -22,6 +23,9 @@ export function SalesSheetManager({ eventId, eventDate, initialSheets }: SalesSh
   const [sheets, setSheets] = useState(initialSheets)
   const [generating, setGenerating] = useState(false)
   const [importing, setImporting] = useState(false)
+  const [reconcileSheetId, setReconcileSheetId] = useState<string | null>(null)
+  const [reconciling, setReconciling] = useState(false)
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
   async function generateSheet() {
     setGenerating(true)
@@ -42,7 +46,7 @@ export function SalesSheetManager({ eventId, eventDate, initialSheets }: SalesSh
     // Get all products with their latest restock unit_cost
     const { data: products } = await supabase
       .from('product')
-      .select('id, name, sku, category(base_price)')
+      .select('id, name, sku, quantity, category(base_price)')
       .order('name')
 
     if (!products || products.length === 0) {
@@ -83,15 +87,15 @@ export function SalesSheetManager({ eventId, eventDate, initialSheets }: SalesSh
       // Metadata row (hidden from user but readable on import)
       ['__meta__', sheet.id, eventId],
       // Header
-      ['Product Name', 'SKU', 'Base Price', 'Qty Sold', 'Notes'],
+      ['Product Name', 'SKU', 'Base Price', 'Starting Qty', 'Qty Sold', 'Notes'],
       // Data rows
-      ...products.map((p: any) => [p.name, p.sku, p.category?.base_price ?? 0, 0, '']),
+      ...products.map((p: any) => [p.name, p.sku, p.category?.base_price ?? 0, p.quantity ?? 0, 0, '']),
     ]
 
     const ws = XLSX.utils.aoa_to_sheet(wsData)
     // Hide the first row by setting row height to 0
     ws['!rows'] = [{ hidden: true }, {}]
-    ws['!cols'] = [{ wch: 30 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 30 }]
+    ws['!cols'] = [{ wch: 30 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 10 }, { wch: 30 }]
 
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Sales')
@@ -134,7 +138,7 @@ export function SalesSheetManager({ eventId, eventDate, initialSheets }: SalesSh
     const productUpdates: { id: string; quantity: number }[] = []
 
     for (const row of dataRows) {
-      const [name, sku, basePrice, qtySoldRaw] = row
+      const [name, sku, basePrice, startingQty, qtySoldRaw] = row
       const qtySold = parseInt(qtySoldRaw) || 0
       if (qtySold <= 0) continue
 
@@ -157,8 +161,8 @@ export function SalesSheetManager({ eventId, eventDate, initialSheets }: SalesSh
     }
 
     if (salesToInsert.length === 0) {
-      toast.error('No rows with qty_sold > 0 found')
       setImporting(false)
+      setReconcileSheetId(sheetId)
       return
     }
 
@@ -172,11 +176,23 @@ export function SalesSheetManager({ eventId, eventDate, initialSheets }: SalesSh
     }
 
     // Update sheet status
-    await supabase.from('sales_sheet').update({ status: 'imported' }).eq('id', sheetId)
-    setSheets(s => s.map(x => x.id === sheetId ? { ...x, status: 'imported' as const } : x))
+    await supabase.from('sales_sheet').update({ status: 'reconciled' }).eq('id', sheetId)
+    setSheets(s => s.map(x => x.id === sheetId ? { ...x, status: 'reconciled' as const } : x))
 
     toast.success(`Imported ${salesToInsert.length} sale records`)
     setImporting(false)
+    router.refresh()
+  }
+
+  async function reconcileSheet() {
+    if (!reconcileSheetId) return
+    setReconciling(true)
+    const { error } = await supabase.from('sales_sheet').update({ status: 'reconciled' }).eq('id', reconcileSheetId)
+    if (error) { toast.error(error.message); setReconciling(false); return }
+    setSheets(s => s.map(x => x.id === reconcileSheetId ? { ...x, status: 'reconciled' as const } : x))
+    toast.success('Sales sheet reconciled')
+    setReconcileSheetId(null)
+    setReconciling(false)
     router.refresh()
   }
 
@@ -202,17 +218,18 @@ export function SalesSheetManager({ eventId, eventDate, initialSheets }: SalesSh
                 <span className="text-xs font-medium">
                   {new Date(sheet.generated_at).toLocaleString()}
                 </span>
-                <Badge variant={sheet.status === 'imported' ? 'secondary' : 'outline'} className="text-xs">
+                <Badge variant={sheet.status === 'reconciled' ? 'secondary' : 'outline'} className="text-xs">
                   {sheet.status}
                 </Badge>
               </div>
             </div>
             {sheet.status === 'pending' && (
-              <label className="cursor-pointer">
+              <>
                 <input
                   type="file"
                   accept=".xlsx"
                   className="hidden"
+                  ref={el => { fileInputRefs.current[sheet.id] = el }}
                   onChange={e => {
                     const file = e.target.files?.[0]
                     if (file) handleImport(sheet.id, file)
@@ -220,15 +237,40 @@ export function SalesSheetManager({ eventId, eventDate, initialSheets }: SalesSh
                   }}
                   disabled={importing}
                 />
-                <Button size="sm" variant="outline" disabled={importing}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={importing}
+                  onClick={() => fileInputRefs.current[sheet.id]?.click()}
+                >
                   {importing ? <Loader2 size={12} className="mr-1 animate-spin" /> : <Upload size={12} className="mr-1" />}
-                  Reimport
+                  Reconcile
                 </Button>
-              </label>
+              </>
             )}
           </div>
         ))}
       </div>
+
+      <Dialog open={!!reconcileSheetId} onOpenChange={o => { if (!o) setReconcileSheetId(null) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>No changes detected</DialogTitle>
+            <DialogDescription>
+              No items with qty sold were found in this sales sheet. Reconcile anyway to mark it as complete?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setReconcileSheetId(null)} disabled={reconciling}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={reconcileSheet} disabled={reconciling}>
+              {reconciling && <Loader2 size={14} className="mr-1 animate-spin" />}
+              Yes, reconcile
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

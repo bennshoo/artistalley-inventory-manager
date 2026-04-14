@@ -1,15 +1,18 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { MapPin, Trash2, Loader2, Power } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
+import { MapPin, Trash2, Loader2, Power, X, Search, ChevronDown, ChevronRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatEventDate } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { APP_STATUSES, getAppStatusStyle } from '@/lib/event-app-status'
 
 type Event = {
   id: string
@@ -18,15 +21,47 @@ type Event = {
   date_end: string
   location: string | null
   is_active: boolean
+  app_status: string
   sales_sheet: { status: string }[]
 }
 
 export function EventList({ initialEvents }: { initialEvents: Event[] }) {
   const router = useRouter()
   const [events, setEvents] = useState(initialEvents)
+  useEffect(() => { setEvents(initialEvents) }, [initialEvents])
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [confirming, setConfirming] = useState(false)
   const [loading, setLoading] = useState(false)
+
+  const [upcomingOpen, setUpcomingOpen] = useState(true)
+  const [pastOpen, setPastOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [appStatusFilter, setAppStatusFilter] = useState('all')
+
+  const filtered = events.filter(e => {
+    const matchesSearch = !search.trim() ||
+      e.name.toLowerCase().includes(search.toLowerCase()) ||
+      e.location?.toLowerCase().includes(search.toLowerCase())
+
+    const matchesFrom = !dateFrom || e.date_start >= dateFrom
+    const matchesTo = !dateTo || e.date_end <= dateTo
+
+    const isPending = e.sales_sheet?.some(s => s.status === 'pending')
+    const isReconciled = e.sales_sheet?.some(s => s.status === 'reconciled')
+    const hasNoSheet = !isPending && !isReconciled
+    const matchesStatus =
+      statusFilter === 'all' ||
+      (statusFilter === 'pending' && isPending) ||
+      (statusFilter === 'reconciled' && isReconciled) ||
+      (statusFilter === 'none' && hasNoSheet)
+
+    const matchesAppStatus = appStatusFilter === 'all' || e.app_status === appStatusFilter
+
+    return matchesSearch && matchesFrom && matchesTo && matchesStatus && matchesAppStatus
+  })
 
   const selectedEvents = events.filter(e => selected.has(e.id))
   const allSelectedActive = selectedEvents.every(e => e.is_active)
@@ -42,10 +77,10 @@ export function EventList({ initialEvents }: { initialEvents: Event[] }) {
   }
 
   function toggleAll() {
-    if (selected.size === events.length) {
+    if (selected.size === filtered.length) {
       setSelected(new Set())
     } else {
-      setSelected(new Set(events.map(e => e.id)))
+      setSelected(new Set(filtered.map(e => e.id)))
     }
   }
 
@@ -83,6 +118,74 @@ export function EventList({ initialEvents }: { initialEvents: Event[] }) {
 
   return (
     <div className="space-y-3">
+      {/* Search */}
+      <div className="relative">
+        <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+        <Input
+          placeholder="Search by name or location…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="pl-8"
+        />
+      </div>
+
+      {/* Filter bar */}
+      <div className="flex flex-wrap gap-2 items-center">
+        <Select value={statusFilter} onValueChange={v => setStatusFilter(v ?? 'all')}>
+          <SelectTrigger className="h-8 w-44 text-xs">
+            <span className={statusFilter === 'all' ? 'text-xs text-muted-foreground' : 'text-xs'}>
+              {statusFilter === 'all' ? 'All sheet statuses' :
+               statusFilter === 'pending' ? 'Sheet pending' :
+               statusFilter === 'reconciled' ? 'Reconciled' : 'No sheet'}
+            </span>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All sheet statuses</SelectItem>
+            <SelectItem value="pending">Sheet pending</SelectItem>
+            <SelectItem value="reconciled">Reconciled</SelectItem>
+            <SelectItem value="none">No sheet</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={appStatusFilter} onValueChange={v => setAppStatusFilter(v ?? 'all')}>
+          <SelectTrigger className="h-8 w-44 text-xs">
+            <span className={appStatusFilter === 'all' ? 'text-xs text-muted-foreground' : 'text-xs'}>
+              {appStatusFilter === 'all' ? 'All app statuses' : appStatusFilter}
+            </span>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All app statuses</SelectItem>
+            {APP_STATUSES.map(s => (
+              <SelectItem key={s} value={s}>{s}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Input
+          type="date"
+          value={dateFrom}
+          onChange={e => setDateFrom(e.target.value)}
+          className="h-8 w-38 text-xs"
+          placeholder="From"
+        />
+        <span className="text-xs text-muted-foreground">–</span>
+        <Input
+          type="date"
+          value={dateTo}
+          onChange={e => setDateTo(e.target.value)}
+          className="h-8 w-38 text-xs"
+          placeholder="To"
+        />
+        {(dateFrom || dateTo) && (
+          <button
+            onClick={() => { setDateFrom(''); setDateTo('') }}
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            <X size={13} />
+          </button>
+        )}
+      </div>
+
       {/* Bulk toolbar — always rendered to reserve space */}
       <div className={cn(
         'flex items-center gap-3 rounded-lg border px-4 py-2.5 bg-muted/50 transition-all',
@@ -114,30 +217,40 @@ export function EventList({ initialEvents }: { initialEvents: Event[] }) {
               <Button size="sm" variant="destructive" onClick={() => setConfirming(true)}>
                 <Trash2 size={14} className="mr-1" />Delete
               </Button>
-              <Button size="sm" variant="outline" onClick={() => setSelected(new Set())}>Clear</Button>
+              <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())} className="px-2"><X size={13} /></Button>
             </>
           )}
         </div>
       </div>
 
       {/* Select all row */}
-      {events.length > 0 && (
+      {filtered.length > 0 && (
         <div className="flex items-center gap-2 px-1">
           <input
             type="checkbox"
             className="h-4 w-4 rounded border-input cursor-pointer"
-            checked={selected.size === events.length && events.length > 0}
+            checked={selected.size === filtered.length && filtered.length > 0}
             onChange={toggleAll}
           />
           <span className="text-xs text-muted-foreground">Select all</span>
         </div>
       )}
 
-      {/* Event rows */}
-      <div className="space-y-2">
-        {events.map(event => {
+      {/* Grouped event rows */}
+      {filtered.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          {events.length === 0
+            ? <><span>No events yet. </span><Link href="/events/new" className="underline">Create one.</Link></>
+            : 'No events match the current filters.'}
+        </p>
+      ) : (() => {
+        const today = new Date().toISOString().split('T')[0]
+        const upcoming = filtered.filter(e => e.date_end >= today)
+        const past = filtered.filter(e => e.date_end < today)
+
+        const renderRow = (event: Event) => {
           const hasPendingSheet = event.sales_sheet?.some(s => s.status === 'pending')
-          const hasImportedSheet = event.sales_sheet?.some(s => s.status === 'imported')
+          const hasReconciledSheet = event.sales_sheet?.some(s => s.status === 'reconciled')
           const isSelected = selected.has(event.id)
           return (
             <div
@@ -157,11 +270,15 @@ export function EventList({ initialEvents }: { initialEvents: Event[] }) {
               />
               <Link href={`/events/${event.id}`} className="flex items-center gap-4 flex-1 min-w-0">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium text-sm">{event.name}</span>
+                    {event.app_status && event.app_status !== 'Unreleased' && (() => {
+                      const s = getAppStatusStyle(event.app_status)
+                      return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${s.bg} ${s.text}`}>{event.app_status}</span>
+                    })()}
                     {!event.is_active && <Badge variant="outline" className="text-xs">Inactive</Badge>}
                     {hasPendingSheet && <Badge variant="outline" className="text-xs">Sheet Pending</Badge>}
-                    {hasImportedSheet && <Badge variant="secondary" className="text-xs">Imported</Badge>}
+                    {hasReconciledSheet && <Badge variant="secondary" className="text-xs">Reconciled</Badge>}
                   </div>
                   {event.location && (
                     <span className="text-xs text-muted-foreground flex items-center gap-1">
@@ -173,11 +290,39 @@ export function EventList({ initialEvents }: { initialEvents: Event[] }) {
               </Link>
             </div>
           )
-        })}
-        {events.length === 0 && (
-          <p className="text-sm text-muted-foreground">No events yet. <Link href="/events/new" className="underline">Create one.</Link></p>
-        )}
-      </div>
+        }
+
+        return (
+          <div className="space-y-4">
+            {past.length > 0 && (
+              <div className="space-y-2">
+                <button
+                  onClick={() => setPastOpen(v => !v)}
+                  className="flex items-center gap-1.5 text-sm font-medium hover:text-foreground/70 transition-colors"
+                >
+                  {pastOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  Past Events
+                  <span className="text-xs text-muted-foreground font-normal">({past.length})</span>
+                </button>
+                {pastOpen && <div className="space-y-2">{past.map(renderRow)}</div>}
+              </div>
+            )}
+            {upcoming.length > 0 && (
+              <div className="space-y-2">
+                <button
+                  onClick={() => setUpcomingOpen(v => !v)}
+                  className="flex items-center gap-1.5 text-sm font-medium hover:text-foreground/70 transition-colors"
+                >
+                  {upcomingOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  Upcoming Events
+                  <span className="text-xs text-muted-foreground font-normal">({upcoming.length})</span>
+                </button>
+                {upcomingOpen && <div className="space-y-2">{upcoming.map(renderRow)}</div>}
+              </div>
+            )}
+          </div>
+        )
+      })()}
     </div>
   )
 }

@@ -9,6 +9,8 @@ import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import { Event } from '@/lib/database.types'
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
+import { APP_STATUSES } from '@/lib/event-app-status'
 
 export function EventForm({ event, pastLocations = [] }: { event?: Event; pastLocations?: string[] }) {
   const router = useRouter()
@@ -20,6 +22,7 @@ export function EventForm({ event, pastLocations = [] }: { event?: Event; pastLo
     date_end: event?.date_end ?? today,
     location: event?.location ?? '',
     tax_rate: event?.tax_rate?.toString() ?? '0',
+    app_status: event?.app_status ?? 'Unreleased',
   })
   const set = (f: string, v: string) => setForm(x => ({ ...x, [f]: v }))
   const [showSuggestions, setShowSuggestions] = useState(false)
@@ -50,6 +53,7 @@ export function EventForm({ event, pastLocations = [] }: { event?: Event; pastLo
       date_end: form.date_end,
       location: form.location || null,
       tax_rate: parseFloat(form.tax_rate) || 0,
+      app_status: form.app_status,
     }
     if (event) {
       const { error } = await supabase.from('event').update(payload).eq('id', event.id)
@@ -70,6 +74,19 @@ export function EventForm({ event, pastLocations = [] }: { event?: Event; pastLo
       <div className="space-y-1.5">
         <Label htmlFor="name">Event Name</Label>
         <Input id="name" value={form.name} onChange={e => set('name', e.target.value)} required placeholder="e.g. Anime Expo 2025" />
+      </div>
+      <div className="space-y-1.5">
+        <Label>Application Status</Label>
+        <Select value={form.app_status} onValueChange={v => set('app_status', v ?? 'Unreleased')}>
+          <SelectTrigger>
+            <span className="text-sm">{form.app_status}</span>
+          </SelectTrigger>
+          <SelectContent>
+            {APP_STATUSES.map(s => (
+              <SelectItem key={s} value={s}>{s}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">

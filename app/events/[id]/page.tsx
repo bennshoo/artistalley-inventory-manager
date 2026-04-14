@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChevronLeft, Edit, MapPin } from 'lucide-react'
 import { formatEventDate } from '@/lib/utils'
+import { getAppStatusStyle } from '@/lib/event-app-status'
 import { LinkButton } from '@/components/ui/link-button'
 import { RevenueLogger } from '@/components/events/revenue-logger'
 import { CostLogger } from '@/components/events/cost-logger'
@@ -46,6 +47,10 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
             <span>{formatEventDate(event.date_start, event.date_end)}</span>
             {event.location && <span className="flex items-center gap-1"><MapPin size={12} />{event.location}</span>}
             {event.tax_rate > 0 && <span>{(event.tax_rate * 100).toFixed(2)}% tax</span>}
+            {event.app_status && (() => {
+              const s = getAppStatusStyle(event.app_status)
+              return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${s.bg} ${s.text}`}>{event.app_status}</span>
+            })()}
           </div>
         </div>
         <div className="flex items-center gap-2">
