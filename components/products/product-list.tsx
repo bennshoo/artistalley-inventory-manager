@@ -6,11 +6,11 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { ProductImage } from '@/components/products/product-image'
 import { toast } from 'sonner'
-import { Loader2, Trash2, Tag, X } from 'lucide-react'
+import { Loader2, Trash2, Tag, X, PowerOff, Power } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Category } from '@/lib/database.types'
 
@@ -20,6 +20,7 @@ interface Product {
   sku: string
   image_url: string | null
   quantity: number
+  is_active: boolean
   category_id: string | null
   category: { name: string; base_price: number } | null
 }
@@ -29,16 +30,21 @@ interface ProductListProps {
   categories: Category[]
 }
 
-export function ProductList({ products, categories }: ProductListProps) {
+export function ProductList({ products: initialProducts, categories }: ProductListProps) {
   const router = useRouter()
+  const [products, setProducts] = useState(initialProducts)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [newCategoryId, setNewCategoryId] = useState('')
   const [loading, setLoading] = useState(false)
+  const [togglingId, setTogglingId] = useState<string | null>(null)
 
   const allSelected = products.length > 0 && selected.size === products.length
   const someSelected = selected.size > 0
+  const selectedProducts = products.filter(p => selected.has(p.id))
+  const allSelectedActive = selectedProducts.every(p => p.is_active)
+  const allSelectedInactive = selectedProducts.every(p => !p.is_active)
 
   function toggleAll() {
     if (allSelected) setSelected(new Set())
@@ -54,12 +60,31 @@ export function ProductList({ products, categories }: ProductListProps) {
     })
   }
 
+  async function toggleActive(id: string, current: boolean) {
+    setTogglingId(id)
+    const { error } = await supabase.from('product').update({ is_active: !current }).eq('id', id)
+    if (error) { toast.error(error.message); setTogglingId(null); return }
+    setProducts(ps => ps.map(p => p.id === id ? { ...p, is_active: !current } : p))
+    setTogglingId(null)
+  }
+
+  async function bulkSetActive(active: boolean) {
+    setLoading(true)
+    const ids = [...selected]
+    const { error } = await supabase.from('product').update({ is_active: active }).in('id', ids)
+    if (error) { toast.error(error.message); setLoading(false); return }
+    setProducts(ps => ps.map(p => selected.has(p.id) ? { ...p, is_active: active } : p))
+    toast.success(`${active ? 'Activated' : 'Deactivated'} ${ids.length} product${ids.length > 1 ? 's' : ''}`)
+    setSelected(new Set())
+    setLoading(false)
+  }
+
   async function applyCategory() {
     setLoading(true)
     const ids = [...selected]
     const { error } = await supabase
       .from('product')
-      .update({ category_id: newCategoryId || null })
+      .update({ category_id: newCategoryId === 'none' ? null : newCategoryId || null })
       .in('id', ids)
     if (error) { toast.error(error.message); setLoading(false); return }
     const cat = categories.find(c => c.id === newCategoryId)
@@ -91,10 +116,20 @@ export function ProductList({ products, categories }: ProductListProps) {
         someSelected ? 'opacity-100' : 'opacity-0 pointer-events-none'
       )}>
         <span className="text-sm font-medium">{selected.size} selected</span>
-        <div className="flex gap-2 ml-auto">
+        <div className="flex gap-2 ml-auto flex-wrap">
           <Button size="sm" variant="outline" onClick={() => setCategoryDialogOpen(true)}>
             <Tag size={13} className="mr-1" />Change Category
           </Button>
+          {!allSelectedActive && (
+            <Button size="sm" variant="outline" onClick={() => bulkSetActive(true)} disabled={loading}>
+              <Power size={13} className="mr-1" />Activate
+            </Button>
+          )}
+          {!allSelectedInactive && (
+            <Button size="sm" variant="outline" onClick={() => bulkSetActive(false)} disabled={loading}>
+              <PowerOff size={13} className="mr-1" />Deactivate
+            </Button>
+          )}
           <Button size="sm" variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
             <Trash2 size={13} className="mr-1" />Delete
           </Button>
@@ -124,7 +159,8 @@ export function ProductList({ products, categories }: ProductListProps) {
             key={product.id}
             className={cn(
               'border rounded-lg p-4 flex gap-3 relative transition-colors',
-              selected.has(product.id) ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'
+              selected.has(product.id) ? 'border-primary bg-primary/5' : 'hover:bg-muted/50',
+              !product.is_active && 'opacity-50'
             )}
           >
             {/* Checkbox */}
@@ -135,6 +171,23 @@ export function ProductList({ products, categories }: ProductListProps) {
               className="absolute top-3 right-3 rounded cursor-pointer"
               onClick={e => e.stopPropagation()}
             />
+
+            {/* Active toggle */}
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); toggleActive(product.id, product.is_active) }}
+              disabled={togglingId === product.id}
+              className={cn(
+                'absolute bottom-3 right-3 transition-colors',
+                product.is_active ? 'text-green-500 hover:text-muted-foreground' : 'text-muted-foreground hover:text-green-500'
+              )}
+              title={product.is_active ? 'Deactivate' : 'Activate'}
+            >
+              {togglingId === product.id
+                ? <Loader2 size={13} className="animate-spin" />
+                : product.is_active ? <Power size={13} /> : <PowerOff size={13} />
+              }
+            </button>
 
             {/* Clicking the card body navigates */}
             <Link

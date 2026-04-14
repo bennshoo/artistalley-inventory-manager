@@ -11,15 +11,15 @@ export interface Database {
       product: {
         Row: {
           id: string; name: string; sku: string; image_url: string | null
-          quantity: number; category_id: string | null; created_at: string
+          quantity: number; category_id: string | null; is_active: boolean; created_at: string
         }
         Insert: {
           id?: string; name: string; sku: string; image_url?: string | null
-          quantity?: number; category_id?: string | null; created_at?: string
+          quantity?: number; category_id?: string | null; is_active?: boolean; created_at?: string
         }
         Update: {
           id?: string; name?: string; sku?: string; image_url?: string | null
-          quantity?: number; category_id?: string | null; created_at?: string
+          quantity?: number; category_id?: string | null; is_active?: boolean; created_at?: string
         }
       }
       supplier: {
