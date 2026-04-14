@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -33,6 +33,7 @@ interface ProductListProps {
 export function ProductList({ products: initialProducts, categories }: ProductListProps) {
   const router = useRouter()
   const [products, setProducts] = useState(initialProducts)
+  useEffect(() => { setProducts(initialProducts) }, [initialProducts])
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -120,11 +121,11 @@ export function ProductList({ products: initialProducts, categories }: ProductLi
     const ids = [...selected]
     const { error } = await supabase.from('product').delete().in('id', ids)
     if (error) { toast.error(error.message); setLoading(false); return }
+    setProducts(ps => ps.filter(p => !ids.includes(p.id)))
     toast.success(`Deleted ${ids.length} product${ids.length > 1 ? 's' : ''}`)
     setDeleteDialogOpen(false)
     setSelected(new Set())
     setLoading(false)
-    router.refresh()
   }
 
   return (
