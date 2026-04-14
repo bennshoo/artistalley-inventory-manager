@@ -19,6 +19,7 @@ interface Mapping {
   location: string
   tax_rate: string
   app_status: string
+  notes: string
 }
 
 interface ParsedRow {
@@ -28,6 +29,7 @@ interface ParsedRow {
   location: string | null
   tax_rate: number
   app_status: string
+  notes: string | null
   isDuplicate: boolean
   existingId: string | null
 }
@@ -40,7 +42,7 @@ export function EventCsvImportDialog() {
   const [step, setStep] = useState<'upload' | 'map' | 'preview'>('upload')
   const [headers, setHeaders] = useState<string[]>([])
   const [rawRows, setRawRows] = useState<string[][]>([])
-  const [mapping, setMapping] = useState<Mapping>({ name: '', date_start: '', date_end: '', location: '', tax_rate: '' })
+  const [mapping, setMapping] = useState<Mapping>({ name: '', date_start: '', date_end: '', location: '', tax_rate: '', app_status: '', notes: '' })
   const [mapErrors, setMapErrors] = useState<Partial<Mapping>>({})
   const [parsed, setParsed] = useState<ParsedRow[]>([])
   const [duplicateAction, setDuplicateAction] = useState<'skip' | 'overwrite'>('skip')
@@ -51,7 +53,7 @@ export function EventCsvImportDialog() {
     setStep('upload')
     setHeaders([])
     setRawRows([])
-    setMapping({ name: '', date_start: '', date_end: '', location: '', tax_rate: '', app_status: '' })
+    setMapping({ name: '', date_start: '', date_end: '', location: '', tax_rate: '', app_status: '', notes: '' })
     setMapErrors({})
     setParsed([])
     setDuplicateAction('skip')
@@ -70,7 +72,7 @@ export function EventCsvImportDialog() {
       }
       setHeaders(nonEmpty[0].map(h => String(h ?? '').trim()))
       setRawRows(nonEmpty.slice(1))
-      setMapping({ name: '', date_start: '', date_end: '', location: '', tax_rate: '', app_status: '' })
+      setMapping({ name: '', date_start: '', date_end: '', location: '', tax_rate: '', app_status: '', notes: '' })
       setMapErrors({})
       setStep('map')
     }
@@ -113,6 +115,7 @@ export function EventCsvImportDialog() {
     const locationIdx = mapping.location && mapping.location !== NONE ? headers.indexOf(mapping.location) : -1
     const taxRateIdx = mapping.tax_rate && mapping.tax_rate !== NONE ? headers.indexOf(mapping.tax_rate) : -1
     const appStatusIdx = mapping.app_status && mapping.app_status !== NONE ? headers.indexOf(mapping.app_status) : -1
+    const notesIdx = mapping.notes && mapping.notes !== NONE ? headers.indexOf(mapping.notes) : -1
 
     const result: Omit<ParsedRow, 'isDuplicate' | 'existingId'>[] = []
     const parseErrors: string[] = []
@@ -129,8 +132,9 @@ export function EventCsvImportDialog() {
       const tax_rate = taxRateIdx >= 0 ? parseFloat(String(row[taxRateIdx])) || 0 : 0
       const rawAppStatus = appStatusIdx >= 0 ? String(row[appStatusIdx] ?? '').trim() : ''
       const app_status = APP_STATUSES.includes(rawAppStatus as any) ? rawAppStatus : 'Unreleased'
+      const notes = notesIdx >= 0 ? String(row[notesIdx] ?? '').trim() || null : null
 
-      result.push({ name, date_start, date_end, location, tax_rate, app_status })
+      result.push({ name, date_start, date_end, location, tax_rate, app_status, notes })
     }
 
     if (parseErrors.length > 0) toast.warning(parseErrors.slice(0, 3).join('\n'))
@@ -174,6 +178,7 @@ export function EventCsvImportDialog() {
         location: p.location,
         tax_rate: p.tax_rate,
         app_status: p.app_status,
+        notes: p.notes,
         is_active: true,
       })))
       if (error) { toast.error(error.message); setImporting(false); return }
@@ -188,6 +193,7 @@ export function EventCsvImportDialog() {
           location: p.location,
           tax_rate: p.tax_rate,
           app_status: p.app_status,
+          notes: p.notes,
         }).eq('id', p.existingId!)
         if (error) { toast.error(`Failed to update "${p.name}": ${error.message}`); setImporting(false); return }
       }
@@ -215,6 +221,7 @@ export function EventCsvImportDialog() {
     { field: 'date_end' as const,   label: 'End Date',           required: false },
     { field: 'location' as const,   label: 'Location',           required: false },
     { field: 'tax_rate' as const,   label: 'Tax Rate',           required: false },
+    { field: 'notes' as const,      label: 'Notes',              required: false },
   ]
 
   return (

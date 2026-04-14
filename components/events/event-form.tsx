@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import { Event } from '@/lib/database.types'
@@ -23,6 +24,7 @@ export function EventForm({ event, pastLocations = [] }: { event?: Event; pastLo
     location: event?.location ?? '',
     tax_rate: event?.tax_rate?.toString() ?? '0',
     app_status: event?.app_status ?? 'Unreleased',
+    notes: event?.notes ?? '',
   })
   const set = (f: string, v: string) => setForm(x => ({ ...x, [f]: v }))
   const [showSuggestions, setShowSuggestions] = useState(false)
@@ -54,6 +56,7 @@ export function EventForm({ event, pastLocations = [] }: { event?: Event; pastLo
       location: form.location || null,
       tax_rate: parseFloat(form.tax_rate) || 0,
       app_status: form.app_status,
+      notes: form.notes || null,
     }
     if (event) {
       const { error } = await supabase.from('event').update(payload).eq('id', event.id)
@@ -134,6 +137,11 @@ export function EventForm({ event, pastLocations = [] }: { event?: Event; pastLo
         <Label htmlFor="tax_rate">Sales Tax Rate</Label>
         <Input id="tax_rate" type="number" step="0.0001" min="0" max="1" value={form.tax_rate}
           onChange={e => set('tax_rate', e.target.value)} placeholder="e.g. 0.0825 for 8.25%" />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="notes">Notes</Label>
+        <Textarea id="notes" value={form.notes} onChange={e => set('notes', e.target.value)}
+          placeholder="Any additional notes…" rows={3} />
       </div>
       <div className="flex gap-2">
         <Button type="submit" disabled={loading} size="sm">

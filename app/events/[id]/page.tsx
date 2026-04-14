@@ -60,6 +60,10 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
         </div>
       </div>
 
+      {event.notes && (
+        <p className="text-sm text-muted-foreground whitespace-pre-wrap">{event.notes}</p>
+      )}
+
       {/* Summary */}
       <div className="grid grid-cols-3 gap-4">
         <Card>
