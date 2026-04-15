@@ -1,13 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
-import { MapPin, Trash2, Loader2, Power, X, Search, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { MapPin, Trash2, Loader2, Power, X, Search, ChevronDown, ChevronRight, ExternalLink, Copy } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatEventDate } from '@/lib/utils'
 import { cn } from '@/lib/utils'
@@ -40,6 +41,9 @@ export function EventList({ initialEvents }: { initialEvents: Event[] }) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [confirming, setConfirming] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [showDuplicateConfirm, setShowDuplicateConfirm] = useState(false)
+  const [duplicating, setDuplicating] = useState(false)
+  const lastCheckedIndex = useRef<number | null>(null)
 
   const [upcomingOpen, setUpcomingOpen] = useState(true)
   const [pastOpen, setPastOpen] = useState(false)
@@ -139,6 +143,64 @@ export function EventList({ initialEvents }: { initialEvents: Event[] }) {
     router.refresh()
   }
 
+  function addOneYear(dateStr: string): string {
+    const year = parseInt(dateStr.slice(0, 4), 10)
+    const month = parseInt(dateStr.slice(5, 7), 10)
+    const day = parseInt(dateStr.slice(8, 10), 10)
+    // Handle Feb 29 leap year edge case
+    const candidate = new Date(year + 1, month - 1, day)
+    const y = candidate.getFullYear()
+    const m = String(candidate.getMonth() + 1).padStart(2, '0')
+    const d = String(candidate.getDate()).padStart(2, '0')
+    return `${y}-${m}-${d}`
+  }
+
+  async function handleDuplicate() {
+    setDuplicating(true)
+    const sourceEvents = events.filter(e => selected.has(e.id))
+    const inserts = sourceEvents.map(e => ({
+      name: e.name,
+      date_start: addOneYear(e.date_start),
+      date_end: addOneYear(e.date_end),
+      location: e.location,
+      tax_rate: (e as any).tax_rate,
+      is_active: true,
+      app_status: 'Unreleased',
+      notes: (e as any).notes ?? null,
+      web_address: e.web_address,
+    }))
+    const { data, error } = await supabase.from('event').insert(inserts).select()
+    setDuplicating(false)
+    setShowDuplicateConfirm(false)
+    if (error) { toast.error(error.message); return }
+    setEvents(prev => [...prev, ...(data ?? [])].sort((a, b) => a.date_start.localeCompare(b.date_start)))
+    setSelected(new Set())
+    toast.success(`${inserts.length} event${inserts.length > 1 ? 's' : ''} duplicated for next year`)
+    router.refresh()
+  }
+
+  function handleCheckboxClick(e: React.MouseEvent<HTMLInputElement>, event: Event, filteredIndex: number) {
+    e.stopPropagation()
+    if (e.shiftKey && lastCheckedIndex.current !== null) {
+      const start = Math.min(lastCheckedIndex.current, filteredIndex)
+      const end = Math.max(lastCheckedIndex.current, filteredIndex)
+      const idsInRange = filtered.slice(start, end + 1).map(item => item.id)
+      const shouldSelect = !selected.has(event.id)
+      setSelected(prev => {
+        const next = new Set(prev)
+        for (const id of idsInRange) shouldSelect ? next.add(id) : next.delete(id)
+        return next
+      })
+    } else {
+      setSelected(prev => {
+        const next = new Set(prev)
+        next.has(event.id) ? next.delete(event.id) : next.add(event.id)
+        return next
+      })
+    }
+    lastCheckedIndex.current = filteredIndex
+  }
+
   return (
     <div className="space-y-3">
       {/* Search */}
@@ -235,6 +297,9 @@ export function EventList({ initialEvents }: { initialEvents: Event[] }) {
               <Power size={13} className="mr-1" />Deactivate
             </Button>
           )}
+          <Button size="sm" variant="outline" onClick={() => setShowDuplicateConfirm(true)} disabled={loading || duplicating}>
+            <Copy size={13} className="mr-1" />Duplicate for next year
+          </Button>
           {confirming ? (
             <>
               <span className="text-sm text-muted-foreground self-center">Delete {selected.size} event{selected.size > 1 ? 's' : ''}?</span>
@@ -268,6 +333,23 @@ export function EventList({ initialEvents }: { initialEvents: Event[] }) {
         </div>
       )}
 
+      <Dialog open={showDuplicateConfirm} onOpenChange={open => { if (!open) setShowDuplicateConfirm(false) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Duplicate {selected.size} event{selected.size > 1 ? 's' : ''} for next year?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Please manually verify and change event details as needed (dates, location, link).
+          </p>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setShowDuplicateConfirm(false)} disabled={duplicating}>Cancel</Button>
+            <Button size="sm" onClick={handleDuplicate} disabled={duplicating}>
+              {duplicating && <Loader2 size={14} className="mr-1 animate-spin" />}Duplicate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Grouped event rows */}
       {filtered.length === 0 ? (
         <p className="text-sm text-muted-foreground">
@@ -280,7 +362,7 @@ export function EventList({ initialEvents }: { initialEvents: Event[] }) {
         const upcoming = filtered.filter(e => e.date_end >= today)
         const past = filtered.filter(e => e.date_end < today)
 
-        const renderRow = (event: Event) => {
+        const renderRow = (event: Event, filteredIndex: number) => {
           const hasPendingSheet = event.sales_sheet?.some(s => s.status === 'pending')
           const hasReconciledSheet = event.sales_sheet?.some(s => s.status === 'reconciled')
           const isSelected = selected.has(event.id)
@@ -297,14 +379,8 @@ export function EventList({ initialEvents }: { initialEvents: Event[] }) {
                 type="checkbox"
                 className="h-4 w-4 accent-primary cursor-pointer shrink-0"
                 checked={isSelected}
-                onChange={e => {
-                  e.stopPropagation()
-                  setSelected(prev => {
-                    const next = new Set(prev)
-                    next.has(event.id) ? next.delete(event.id) : next.add(event.id)
-                    return next
-                  })
-                }}
+                onChange={() => {}}
+                onClick={e => handleCheckboxClick(e, event, filteredIndex)}
               />
               <Link href={`/events/${event.id}`} className="flex items-center gap-4 flex-1 min-w-0">
                 <div className="flex-1 min-w-0">
@@ -349,7 +425,7 @@ export function EventList({ initialEvents }: { initialEvents: Event[] }) {
                   Past Events
                   <span className="text-xs text-muted-foreground font-normal">({past.length})</span>
                 </button>
-                {pastOpen && <div className="space-y-2">{past.map(renderRow)}</div>}
+                {pastOpen && <div className="space-y-2">{past.map((e, i) => renderRow(e, i))}</div>}
               </div>
             )}
             {upcoming.length > 0 && (
@@ -362,7 +438,7 @@ export function EventList({ initialEvents }: { initialEvents: Event[] }) {
                   Upcoming Events
                   <span className="text-xs text-muted-foreground font-normal">({upcoming.length})</span>
                 </button>
-                {upcomingOpen && <div className="space-y-2">{upcoming.map(renderRow)}</div>}
+                {upcomingOpen && <div className="space-y-2">{upcoming.map((e, i) => renderRow(e, past.length + i))}</div>}
               </div>
             )}
           </div>

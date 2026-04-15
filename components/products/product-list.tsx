@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -60,6 +60,29 @@ export function ProductList({ products: initialProducts, categories, tags }: Pro
   const [showNeedsAttention, setShowNeedsAttention] = useState<boolean>(false)
   const [filterCategoryId, setFilterCategoryId] = useState<string>('')
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false)
+  const lastCheckedIndex = useRef<number | null>(null)
+
+  function handleCheckboxClick(e: React.MouseEvent<HTMLInputElement>, productId: string, filteredIndex: number) {
+    e.stopPropagation()
+    if (e.shiftKey && lastCheckedIndex.current !== null) {
+      const start = Math.min(lastCheckedIndex.current, filteredIndex)
+      const end = Math.max(lastCheckedIndex.current, filteredIndex)
+      const idsInRange = filtered.slice(start, end + 1).map(p => p.id)
+      const shouldSelect = !selected.has(productId)
+      setSelected(prev => {
+        const next = new Set(prev)
+        for (const id of idsInRange) shouldSelect ? next.add(id) : next.delete(id)
+        return next
+      })
+    } else {
+      setSelected(prev => {
+        const next = new Set(prev)
+        next.has(productId) ? next.delete(productId) : next.add(productId)
+        return next
+      })
+    }
+    lastCheckedIndex.current = filteredIndex
+  }
 
   useEffect(() => {
     const saved = loadProductFilters()
@@ -401,7 +424,7 @@ export function ProductList({ products: initialProducts, categories, tags }: Pro
 
       {/* Product grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filtered.map(product => {
+        {filtered.map((product, filteredIndex) => {
           const productTags = product.product_tag
             .map(pt => tags.find(t => t.id === pt.tag_id))
             .filter(Boolean) as TagType[]
@@ -424,9 +447,9 @@ export function ProductList({ products: initialProducts, categories, tags }: Pro
               <input
                 type="checkbox"
                 checked={selected.has(product.id)}
-                onChange={() => toggle(product.id)}
+                onChange={() => {}}
                 className="absolute top-3 right-3 rounded cursor-pointer"
-                onClick={e => e.stopPropagation()}
+                onClick={e => handleCheckboxClick(e, product.id, filteredIndex)}
               />
 
               {/* Active toggle */}
