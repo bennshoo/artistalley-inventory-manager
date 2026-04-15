@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChevronLeft, Edit } from 'lucide-react'
-import { ProductImage } from '@/components/products/product-image'
+import { ProductImageUpload } from '@/components/products/product-image-upload'
 import { DeleteProductButton } from '@/components/products/delete-product-button'
 import { ToggleProductActiveButton } from '@/components/products/toggle-product-active-button'
 import { LinkButton } from '@/components/ui/link-button'
@@ -34,7 +34,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
       </Link>
 
       <div className="flex items-start gap-4">
-        <ProductImage url={product.image_url} name={product.name} size={80} />
+        <ProductImageUpload productId={id} initialUrl={product.image_url} name={product.name} size={80} />
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold">{product.name}</h1>
