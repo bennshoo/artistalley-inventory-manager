@@ -51,15 +51,24 @@ export function ProductList({ products: initialProducts, categories, tags }: Pro
   const [newCategoryId, setNewCategoryId] = useState('')
   const [loading, setLoading] = useState(false)
   const [togglingId, setTogglingId] = useState<string | null>(null)
-  const [search, setSearch] = useState(() => loadProductFilters().search ?? '')
-  const [activeTagIds, setActiveTagIds] = useState<Set<string>>(() => new Set(loadProductFilters().activeTagIds ?? []))
+  const [search, setSearch] = useState('')
+  const [activeTagIds, setActiveTagIds] = useState<Set<string>>(new Set())
   const [tagWarningOpen, setTagWarningOpen] = useState(false)
   const [tagEditOpen, setTagEditOpen] = useState(false)
   const [draftTagIds, setDraftTagIds] = useState<Set<string>>(new Set())
-  const [showInactive, setShowInactive] = useState<boolean>(() => loadProductFilters().showInactive ?? false)
-  const [showNeedsAttention, setShowNeedsAttention] = useState<boolean>(() => loadProductFilters().showNeedsAttention ?? false)
-  const [filterCategoryId, setFilterCategoryId] = useState<string>(() => loadProductFilters().filterCategoryId ?? '')
+  const [showInactive, setShowInactive] = useState<boolean>(false)
+  const [showNeedsAttention, setShowNeedsAttention] = useState<boolean>(false)
+  const [filterCategoryId, setFilterCategoryId] = useState<string>('')
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false)
+
+  useEffect(() => {
+    const saved = loadProductFilters()
+    if (saved.search) setSearch(saved.search)
+    if (saved.activeTagIds?.length) setActiveTagIds(new Set(saved.activeTagIds))
+    if (saved.showInactive) setShowInactive(saved.showInactive)
+    if (saved.showNeedsAttention) setShowNeedsAttention(saved.showNeedsAttention)
+    if (saved.filterCategoryId) setFilterCategoryId(saved.filterCategoryId)
+  }, [])
 
   useEffect(() => {
     sessionStorage.setItem(FILTERS_KEY, JSON.stringify({
@@ -96,7 +105,7 @@ export function ProductList({ products: initialProducts, categories, tags }: Pro
     const matchesTags = activeTagIds.size === 0 ||
       p.product_tag.some(pt => activeTagIds.has(pt.tag_id))
 
-    const matchesActive = showInactive || p.is_active
+    const matchesActive = showInactive ? !p.is_active : p.is_active
 
     const matchesCategory = !filterCategoryId || p.category_id === filterCategoryId
 
@@ -324,7 +333,7 @@ export function ProductList({ products: initialProducts, categories, tags }: Pro
               : 'border-input bg-background text-muted-foreground hover:bg-muted/50'
           )}
         >
-          Show inactive
+          Inactive
         </button>
 
         {/* Needs attention toggle */}

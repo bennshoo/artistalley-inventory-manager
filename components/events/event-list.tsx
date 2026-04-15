@@ -43,11 +43,20 @@ export function EventList({ initialEvents }: { initialEvents: Event[] }) {
 
   const [upcomingOpen, setUpcomingOpen] = useState(true)
   const [pastOpen, setPastOpen] = useState(false)
-  const [search, setSearch] = useState(() => loadEventFilters().search ?? '')
-  const [dateFrom, setDateFrom] = useState(() => loadEventFilters().dateFrom ?? '')
-  const [dateTo, setDateTo] = useState(() => loadEventFilters().dateTo ?? '')
-  const [statusFilter, setStatusFilter] = useState(() => loadEventFilters().statusFilter ?? 'all')
-  const [appStatusFilter, setAppStatusFilter] = useState(() => loadEventFilters().appStatusFilter ?? 'all')
+  const [search, setSearch] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [appStatusFilter, setAppStatusFilter] = useState('all')
+
+  useEffect(() => {
+    const saved = loadEventFilters()
+    if (saved.search) setSearch(saved.search)
+    if (saved.dateFrom) setDateFrom(saved.dateFrom)
+    if (saved.dateTo) setDateTo(saved.dateTo)
+    if (saved.statusFilter) setStatusFilter(saved.statusFilter)
+    if (saved.appStatusFilter) setAppStatusFilter(saved.appStatusFilter)
+  }, [])
 
   useEffect(() => {
     sessionStorage.setItem(FILTERS_KEY, JSON.stringify({ search, dateFrom, dateTo, statusFilter, appStatusFilter }))

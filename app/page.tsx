@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic'
 
 export default async function DashboardPage() {
   const [productsRes, eventsRes, salesRes] = await Promise.all([
-    supabase.from('product').select('id, name, quantity, sku'),
+    supabase.from('product').select('id, name, quantity, sku').eq('is_active', true),
     supabase.from('event').select('id, name, date_start, date_end, location')
       .gte('date_end', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
       .eq('app_status', 'Accepted')
