@@ -3,6 +3,8 @@ import { ProductForm } from '@/components/products/product-form'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 
+export const dynamic = 'force-dynamic'
+
 export default async function NewProductPage() {
   const [{ data: categories }, { data: tags }] = await Promise.all([
     supabase.from('category').select('*').order('name'),

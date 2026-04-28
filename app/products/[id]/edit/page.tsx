@@ -4,6 +4,8 @@ import { ProductForm } from '@/components/products/product-form'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 
+export const dynamic = 'force-dynamic'
+
 export default async function EditProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const [productRes, categoriesRes, tagsRes, productTagsRes] = await Promise.all([
