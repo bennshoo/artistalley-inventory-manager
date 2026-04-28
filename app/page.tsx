@@ -111,14 +111,33 @@ export default async function DashboardPage() {
             {events.length === 0 && <p className="text-sm text-muted-foreground">No events yet.</p>}
             {(() => {
               const today = new Date().toISOString().split('T')[0]
+              const msPerDay = 1000 * 60 * 60 * 24
               return events.map(e => {
                 const isPast = (e as any).date_end < today
+                const daysUntilStart = Math.round(
+                  (new Date((e as any).date_start).getTime() - new Date(today).getTime()) / msPerDay
+                )
+                const isOngoing = (e as any).date_start <= today && (e as any).date_end >= today
+                let countdown: string | null = null
+                if (!isPast) {
+                  if (isOngoing) countdown = 'Ongoing'
+                  else if (daysUntilStart === 0) countdown = 'Today'
+                  else if (daysUntilStart === 1) countdown = 'Tomorrow'
+                  else countdown = `${daysUntilStart} days left`
+                }
                 return (
                   <div key={e.id} className={`flex items-center justify-between text-sm ${isPast ? 'opacity-50' : ''}`}>
                     <Link href={`/events/${e.id}`} className="hover:underline">{e.name}</Link>
-                    <span className="text-muted-foreground text-xs shrink-0 ml-2">
-                      {formatEventDate((e as any).date_start, (e as any).date_end)}
-                    </span>
+                    <div className="flex items-center gap-2 shrink-0 ml-2">
+                      {countdown && (
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${isOngoing ? 'bg-green-600 text-white' : 'bg-foreground text-background'}`}>
+                          {countdown}
+                        </span>
+                      )}
+                      <span className="text-muted-foreground text-xs">
+                        {formatEventDate((e as any).date_start, (e as any).date_end)}
+                      </span>
+                    </div>
                   </div>
                 )
               })

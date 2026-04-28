@@ -60,6 +60,7 @@ export function ProductList({ products: initialProducts, categories, tags }: Pro
   const [showNeedsAttention, setShowNeedsAttention] = useState<boolean>(false)
   const [filterCategoryId, setFilterCategoryId] = useState<string>('')
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false)
+  const [maxUnits, setMaxUnits] = useState<string>('')
   const lastCheckedIndex = useRef<number | null>(null)
 
   function handleCheckboxClick(e: React.MouseEvent<HTMLInputElement>, productId: string, filteredIndex: number) {
@@ -91,15 +92,16 @@ export function ProductList({ products: initialProducts, categories, tags }: Pro
     if (saved.showInactive) setShowInactive(saved.showInactive)
     if (saved.showNeedsAttention) setShowNeedsAttention(saved.showNeedsAttention)
     if (saved.filterCategoryId) setFilterCategoryId(saved.filterCategoryId)
+    if (saved.maxUnits) setMaxUnits(saved.maxUnits)
   }, [])
 
   useEffect(() => {
     sessionStorage.setItem(FILTERS_KEY, JSON.stringify({
-      search, activeTagIds: [...activeTagIds], showInactive, showNeedsAttention, filterCategoryId,
+      search, activeTagIds: [...activeTagIds], showInactive, showNeedsAttention, filterCategoryId, maxUnits,
     }))
-  }, [search, activeTagIds, showInactive, showNeedsAttention, filterCategoryId])
+  }, [search, activeTagIds, showInactive, showNeedsAttention, filterCategoryId, maxUnits])
 
-  const hasActiveFilters = search.trim() || activeTagIds.size > 0 || showInactive || showNeedsAttention || filterCategoryId
+  const hasActiveFilters = search.trim() || activeTagIds.size > 0 || showInactive || showNeedsAttention || filterCategoryId || maxUnits
 
   function resetFilters() {
     setSearch('')
@@ -107,6 +109,7 @@ export function ProductList({ products: initialProducts, categories, tags }: Pro
     setShowInactive(false)
     setShowNeedsAttention(false)
     setFilterCategoryId('')
+    setMaxUnits('')
     sessionStorage.removeItem(FILTERS_KEY)
   }
 
@@ -133,8 +136,9 @@ export function ProductList({ products: initialProducts, categories, tags }: Pro
     const matchesCategory = !filterCategoryId || p.category_id === filterCategoryId
 
     const matchesNeedsAttention = !showNeedsAttention || (!p.is_active && !p.category_id)
+    const matchesMaxUnits = !maxUnits || p.quantity < parseInt(maxUnits, 10)
 
-    return matchesSearch && matchesTags && matchesActive && matchesCategory && matchesNeedsAttention
+    return matchesSearch && matchesTags && matchesActive && matchesCategory && matchesNeedsAttention && matchesMaxUnits
   })
 
   const allSelected = filtered.length > 0 && filtered.every(p => selected.has(p.id))
@@ -294,6 +298,18 @@ export function ProductList({ products: initialProducts, categories, tags }: Pro
             ))}
           </SelectContent>
         </Select>
+
+        {/* Max units filter */}
+        <div className="relative">
+          <Input
+            type="number"
+            min="0"
+            placeholder="< units"
+            value={maxUnits}
+            onChange={e => setMaxUnits(e.target.value)}
+            className="h-8 w-24 text-xs"
+          />
+        </div>
 
         {/* Tags multi-select dropdown */}
         {tags.length > 0 && (
@@ -472,7 +488,6 @@ export function ProductList({ products: initialProducts, categories, tags }: Pro
               <Link
                 href={`/products/${product.id}`}
                 className="flex gap-3 flex-1 min-w-0"
-                onClick={e => { if (selected.size > 0) e.preventDefault(); toggle(product.id) }}
               >
                 <div className={cn(!product.is_active && 'grayscale opacity-50')}>
                   <ProductImage url={product.image_url} name={product.name} size={56} />

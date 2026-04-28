@@ -2,11 +2,14 @@ import { supabase } from "@/lib/supabase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatEventDate } from "@/lib/utils";
+import { ReportFilters } from "@/components/reports/report-filters";
+import { Suspense } from "react";
 
 export const dynamic = "force-dynamic";
 
-export default async function ReportsPage() {
-  const [salesRes, productsRes, eventsRes, revenueRes, costsRes] =
+export default async function ReportsPage({ searchParams }: { searchParams: Promise<{ dateFrom?: string; dateTo?: string }> }) {
+  const { dateFrom, dateTo } = await searchParams;
+  const [salesRes, eventsRes, revenueRes, costsRes] =
     await Promise.all([
       supabase
         .from("sale")
@@ -15,22 +18,24 @@ export default async function ReportsPage() {
         )
         .order("date", { ascending: false }),
       supabase
-        .from("product")
-        .select("id, name, sku, quantity, category(name)")
-        .order("quantity"),
-      supabase
         .from("event")
         .select("id, name, date_start, date_end")
+        .eq("app_status", "Accepted")
         .order("date_start", { ascending: false }),
       supabase.from("event_revenue").select("*, event(name)"),
       supabase.from("cost").select("*, event(name)"),
     ]);
 
   const sales = (salesRes.data ?? []) as any[];
-  const products = (productsRes.data ?? []) as any[];
-  const events = (eventsRes.data ?? []) as any[];
+  const allEvents = (eventsRes.data ?? []) as any[];
   const revenues = (revenueRes.data ?? []) as any[];
   const costs = (costsRes.data ?? []) as any[];
+
+
+  const events = allEvents.filter(e =>
+    (!dateFrom || e.date_start >= dateFrom) &&
+    (!dateTo || e.date_end <= dateTo)
+  );
 
   // Product performance: units sold per product
   const productSales: Record<
@@ -77,6 +82,10 @@ export default async function ReportsPage() {
       <div>
         <h1 className="text-2xl font-semibold">Reports</h1>
       </div>
+
+      <Suspense>
+        <ReportFilters />
+      </Suspense>
 
       {/* Per-event summary */}
       <Card>
@@ -177,35 +186,6 @@ export default async function ReportsPage() {
           </CardContent>
         </Card>
       </div>
-
-      {/* Inventory status */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">Current Inventory Status</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-            {products.map((p: any) => (
-              <div key={p.id} className="border rounded p-2 text-xs">
-                <p className="font-medium truncate">{p.name}</p>
-                <p className="text-muted-foreground">{p.sku}</p>
-                <Badge
-                  variant={
-                    p.quantity === 0
-                      ? "destructive"
-                      : p.quantity <= 5
-                        ? "outline"
-                        : "secondary"
-                  }
-                  className="text-xs mt-1"
-                >
-                  {p.quantity} in stock
-                </Badge>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
 
       {/* COGS report */}
       <Card>

@@ -142,7 +142,7 @@ export function EventForm({ event, pastLocations = [] }: { event?: Event; pastLo
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="tax_rate">Sales Tax Rate</Label>
-        <Input id="tax_rate" type="number" step="0.0001" min="0" max="1" value={form.tax_rate}
+        <Input id="tax_rate" type="number" step="0.00001" min="0" max="1" value={form.tax_rate}
           onChange={e => set('tax_rate', e.target.value)} placeholder="e.g. 0.0825 for 8.25%" />
       </div>
       <div className="space-y-1.5">
