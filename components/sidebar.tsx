@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import {
   Package, Truck, CalendarDays, BarChart3,
-  SlidersHorizontal, Home, ChevronRight
+  SlidersHorizontal, Home, ChevronRight, Receipt
 } from 'lucide-react'
 
 const nav = [
@@ -14,6 +14,7 @@ const nav = [
   { href: '/categories', label: 'Categories & Tags', icon: SlidersHorizontal },
   { href: '/suppliers', label: 'Suppliers & Restocks', icon: Truck },
   { href: '/events', label: 'Events', icon: CalendarDays },
+  { href: '/expenses', label: 'Expenses', icon: Receipt },
   { href: '/adjustments', label: 'Adjustments', icon: SlidersHorizontal },
   { href: '/reports', label: 'Reports', icon: BarChart3 },
 ]

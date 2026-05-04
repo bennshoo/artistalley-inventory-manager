@@ -4,20 +4,19 @@ import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { toast } from 'sonner'
 import { Cost } from '@/lib/database.types'
 import { Loader2, Trash2, Plus, Pencil, Check, X } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
-const COST_TYPES = ['table_fee', 'travel', 'hotel', 'food', 'other']
+const COST_TYPES = ['booth_setup', 'inventory', 'table_fee', 'travel', 'hotel', 'food', 'other']
 
 function formatCostType(type: string) {
   return type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
 
-export function CostLogger({ eventId, initialCosts }: { eventId: string; initialCosts: Cost[] }) {
+export function CostLogger({ eventId, initialCosts }: { eventId: string | null; initialCosts: Cost[] }) {
   const router = useRouter()
   const [costs, setCosts] = useState(initialCosts)
   const [showForm, setShowForm] = useState(false)
@@ -26,7 +25,7 @@ export function CostLogger({ eventId, initialCosts }: { eventId: string; initial
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState({ type: 'table_fee', amount: '', note: '' })
   const [savingEditId, setSavingEditId] = useState<string | null>(null)
-  const [form, setForm] = useState({ type: 'table_fee', amount: '', note: '' })
+  const [form, setForm] = useState({ type: 'booth_setup', amount: '', note: '' })
   const set = (f: string, v: string) => setForm(x => ({ ...x, [f]: v }))
 
   function startEdit(c: Cost) {
@@ -141,9 +140,9 @@ export function CostLogger({ eventId, initialCosts }: { eventId: string; initial
           </Select>
           <div className="relative">
             <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">$</span>
-            <Input type="number" step="0.01" placeholder="0.00" value={form.amount} onChange={e => set('amount', e.target.value)} className="h-8 text-xs pl-5" />
+            <Input type="number" step="0.01" placeholder="0.00" value={form.amount} onChange={e => set('amount', e.target.value)} onKeyDown={e => e.key === 'Enter' && addCost()} className="h-8 text-xs pl-5" />
           </div>
-          <Input placeholder="Note (optional)" value={form.note} onChange={e => set('note', e.target.value)} className="h-8 text-xs" />
+          <Input placeholder="Note (optional)" value={form.note} onChange={e => set('note', e.target.value)} onKeyDown={e => e.key === 'Enter' && addCost()} className="h-8 text-xs" />
           <div className="flex gap-2">
             <Button size="sm" onClick={addCost} disabled={saving} className="h-7 text-xs">
               {saving && <Loader2 size={10} className="mr-1 animate-spin" />}Add

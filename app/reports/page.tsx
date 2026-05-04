@@ -65,6 +65,9 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
     catRevenue[cat] = (catRevenue[cat] ?? 0) + s.qty_sold;
   }
 
+  const generalExpenses = costs.filter((c: any) => c.event_id === null);
+  const totalGeneralExpenses = generalExpenses.reduce((s: number, c: any) => s + c.amount, 0);
+
   // Per-event summary
   const eventSummary = events.map((ev) => {
     const evRevenues = revenues.filter((r: any) => r.event_id === ev.id);
@@ -219,6 +222,33 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
               </div>
             ))}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* General expenses */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm flex items-center justify-between">
+            <span>General Expenses</span>
+            <span className="text-muted-foreground font-normal">${totalGeneralExpenses.toFixed(2)} total</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {generalExpenses.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No general expenses recorded.</p>
+          ) : (
+            <div className="space-y-1">
+              {generalExpenses.map((c: any) => (
+                <div key={c.id} className="flex items-center justify-between text-xs border-b pb-1">
+                  <div>
+                    <span className="font-medium">{c.type.replace(/_/g, " ").replace(/\b\w/g, (x: string) => x.toUpperCase())}</span>
+                    {c.note && <span className="text-muted-foreground ml-2">{c.note}</span>}
+                  </div>
+                  <span className="font-medium">${c.amount.toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
