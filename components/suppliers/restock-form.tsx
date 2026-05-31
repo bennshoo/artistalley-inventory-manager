@@ -8,7 +8,71 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { toast } from 'sonner'
-import { Loader2, Plus, Trash2 } from 'lucide-react'
+import { Loader2, Plus, Trash2, ChevronDown } from 'lucide-react'
+
+interface ProductComboboxProps {
+  products: { id: string; name: string; sku: string }[]
+  value: string
+  onChange: (id: string) => void
+}
+
+function ProductCombobox({ products, value, onChange }: ProductComboboxProps) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const selected = products.find(p => p.id === value)
+
+  const filtered = products.filter(p =>
+    !search.trim() ||
+    p.name.toLowerCase().includes(search.toLowerCase()) ||
+    p.sku.toLowerCase().includes(search.toLowerCase())
+  )
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => { setOpen(v => !v); setSearch('') }}
+        className="w-full flex items-center justify-between border rounded-md px-3 h-9 text-sm bg-background hover:bg-muted/50 transition-colors"
+      >
+        <span className={value ? 'text-sm' : 'text-muted-foreground text-sm'}>
+          {selected ? `${selected.name} (${selected.sku})` : 'Select product'}
+        </span>
+        <ChevronDown size={14} className="text-muted-foreground shrink-0 ml-2" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-md">
+            <div className="p-2 border-b">
+              <input
+                autoFocus
+                placeholder="Search by name or SKU…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="w-full text-sm px-2 py-1 outline-none bg-transparent placeholder:text-muted-foreground"
+              />
+            </div>
+            <div className="max-h-52 overflow-y-auto py-1">
+              {filtered.length === 0 ? (
+                <p className="text-xs text-muted-foreground px-3 py-2">No products found.</p>
+              ) : filtered.map(p => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => { onChange(p.id); setOpen(false); setSearch('') }}
+                  className="w-full text-left px-3 py-1.5 text-sm hover:bg-muted transition-colors flex items-center gap-2"
+                >
+                  <span>{p.name}</span>
+                  <span className="text-muted-foreground text-xs">({p.sku})</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
 
 interface RestockFormProps {
   products: { id: string; name: string; sku: string }[]
@@ -110,20 +174,11 @@ export function RestockForm({ products, suppliers }: RestockFormProps) {
 
         {rows.map(row => (
           <div key={row.id} className="grid grid-cols-[1fr_100px_110px_32px] gap-2 items-center">
-            <Select value={row.product_id} onValueChange={v => updateRow(row.id, 'product_id', v ?? '')}>
-              <SelectTrigger className="w-full">
-                <span className={row.product_id ? 'text-sm' : 'text-muted-foreground text-sm'}>
-                  {row.product_id
-                    ? (() => { const p = products.find(x => x.id === row.product_id); return p ? `${p.name} (${p.sku})` : 'Select product' })()
-                    : 'Select product'}
-                </span>
-              </SelectTrigger>
-              <SelectContent>
-                {products.map(p => (
-                  <SelectItem key={p.id} value={p.id}>{p.name} ({p.sku})</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <ProductCombobox
+              products={products}
+              value={row.product_id}
+              onChange={v => updateRow(row.id, 'product_id', v)}
+            />
 
             <Input
               type="number" min="1" placeholder="0"

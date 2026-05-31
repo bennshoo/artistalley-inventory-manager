@@ -3,6 +3,8 @@ import { RestockForm } from '@/components/suppliers/restock-form'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 
+export const dynamic = 'force-dynamic'
+
 export default async function NewRestockPage() {
   const [productsRes, suppliersRes] = await Promise.all([
     supabase.from('product').select('id, name, sku').order('name'),
@@ -10,7 +12,7 @@ export default async function NewRestockPage() {
   ])
 
   return (
-    <div className="space-y-4 max-w-xl">
+    <div className="space-y-4 max-w-4xl">
       <Link href="/suppliers" className="text-sm text-muted-foreground flex items-center gap-1 hover:text-foreground">
         <ChevronLeft size={14} /> Suppliers & Restocks
       </Link>
