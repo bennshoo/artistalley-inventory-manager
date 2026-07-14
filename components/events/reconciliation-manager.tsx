@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
@@ -9,13 +9,14 @@ import { Badge } from '@/components/ui/badge'
 import { ProductImage } from '@/components/products/product-image'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { Loader2, ClipboardList, Save, Lock, Unlock, Trash2, Plus } from 'lucide-react'
+import { Loader2, ClipboardList, Save, Lock, Unlock, Trash2, Plus, ChevronUp, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export interface ActiveProduct {
   id: string
   name: string
   sku: string
+  type: string | null
   image_url: string | null
   quantity: number
   unit_cost: number
@@ -26,6 +27,7 @@ export interface ReconRow {
   product_id: string
   name: string
   sku: string
+  type: string | null
   image_url: string | null
   stock: number
   qty_brought: number
@@ -56,6 +58,28 @@ export function ReconciliationManager({
   const [reopening, setReopening] = useState(false)
   const [confirmFinalize, setConfirmFinalize] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [sort, setSort] = useState<{ key: 'name' | 'type'; dir: 'asc' | 'desc' }>({ key: 'type', dir: 'asc' })
+  const inputRefs = useRef<Record<string, HTMLInputElement | null>>({})
+
+  function toggleSort(key: 'name' | 'type') {
+    setSort(s => s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' })
+  }
+
+  // Tab moves down a column, then wraps to the top of the next column
+  function handleInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>, colIndex: number, rowIndex: number, rowCount: number) {
+    if (e.key !== 'Tab') return
+    const dir = e.shiftKey ? -1 : 1
+    let r = rowIndex + dir
+    let c = colIndex
+    if (r >= rowCount) { r = 0; c = colIndex + 1 }
+    else if (r < 0) { r = rowCount - 1; c = colIndex - 1 }
+    const target = inputRefs.current[`${c}-${r}`]
+    if (target) {
+      e.preventDefault()
+      target.focus()
+      target.select()
+    }
+  }
 
   const reconciled = status === 'reconciled'
 
@@ -87,7 +111,7 @@ export function ReconciliationManager({
     const newRows: ReconRow[] = (inserted ?? []).map(r => {
       const p = pMap.get(r.product_id)!
       return {
-        id: r.id, product_id: r.product_id, name: p.name, sku: p.sku, image_url: p.image_url, stock: p.quantity,
+        id: r.id, product_id: r.product_id, name: p.name, sku: p.sku, type: p.type, image_url: p.image_url, stock: p.quantity,
         qty_brought: r.qty_brought, qty_sold: r.qty_sold, qty_voided: r.qty_voided, unit_cost: r.unit_cost,
       }
     }).sort((a, b) => a.name.localeCompare(b.name))
@@ -208,7 +232,7 @@ export function ReconciliationManager({
     const newRows: ReconRow[] = (inserted ?? []).map(r => {
       const p = pMap.get(r.product_id)!
       return {
-        id: r.id, product_id: r.product_id, name: p.name, sku: p.sku, image_url: p.image_url, stock: p.quantity,
+        id: r.id, product_id: r.product_id, name: p.name, sku: p.sku, type: p.type, image_url: p.image_url, stock: p.quantity,
         qty_brought: r.qty_brought, qty_sold: r.qty_sold, qty_voided: r.qty_voided, unit_cost: r.unit_cost,
       }
     })
@@ -237,6 +261,13 @@ export function ReconciliationManager({
     voided: acc.voided + r.qty_voided,
     remaining: acc.remaining + (r.qty_brought - r.qty_sold - r.qty_voided),
   }), { brought: 0, sold: 0, voided: 0, remaining: 0 })
+
+  const sortedRows = [...rows].sort((a, b) => {
+    const av = sort.key === 'type' ? (a.type ?? '') : a.name
+    const bv = sort.key === 'type' ? (b.type ?? '') : b.name
+    const primary = av.localeCompare(bv)
+    return (sort.dir === 'asc' ? primary : -primary) || a.name.localeCompare(b.name)
+  })
 
   return (
     <div className="space-y-4">
@@ -282,18 +313,31 @@ export function ReconciliationManager({
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="text-xs text-muted-foreground border-b">
-                <th className="text-left font-medium py-2 pr-2">Product</th>
-                <th className="text-left font-medium py-2 px-2">SKU</th>
+                <th className="text-left font-medium py-2 pr-2">
+                  <button onClick={() => toggleSort('name')} className="inline-flex items-center gap-1 hover:text-foreground transition-colors">
+                    Product
+                    {sort.key === 'name' && (sort.dir === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />)}
+                  </button>
+                </th>
+                <th className="text-left font-medium py-2 px-2">
+                  <button onClick={() => toggleSort('type')} className="inline-flex items-center gap-1 hover:text-foreground transition-colors">
+                    Type
+                    {sort.key === 'type' && (sort.dir === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />)}
+                  </button>
+                </th>
                 <th className="text-right font-medium py-2 px-2">Stock</th>
-                <th className="text-right font-medium py-2 px-2">Brought</th>
-                <th className="text-right font-medium py-2 px-2">Sold</th>
-                <th className="text-right font-medium py-2 px-2">Voided</th>
+                <th className="text-center font-medium py-2 px-2">Brought</th>
+                <th className="text-center font-medium py-2 px-2">Sold</th>
+                <th className="text-center font-medium py-2 px-2">Voided</th>
                 <th className="text-right font-medium py-2 pl-2">Remaining</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map(r => {
+              {sortedRows.map((r, rowIndex) => {
                 const remaining = r.qty_brought - r.qty_sold - r.qty_voided
+                const rowCount = sortedRows.length
+                const broughtOverStock = r.qty_brought > r.stock
+                const overSold = r.qty_sold + r.qty_voided > r.qty_brought
                 return (
                   <tr key={r.id} className="border-b last:border-0">
                     <td className="py-2 pr-2">
@@ -302,30 +346,42 @@ export function ReconciliationManager({
                         <span className="font-medium">{r.name}</span>
                       </div>
                     </td>
-                    <td className="py-2 px-2 text-muted-foreground text-xs">{r.sku}</td>
+                    <td className="py-2 px-2 text-muted-foreground text-xs">{r.type ?? '—'}</td>
                     <td className="py-2 px-2 text-right text-muted-foreground tabular-nums">{r.stock}</td>
-                    <td className="py-2 px-2 text-right">
+                    <td className="py-2 px-2 text-center">
                       {reconciled ? r.qty_brought : (
                         <Input type="number" min="0" value={r.qty_brought}
+                          ref={el => { inputRefs.current[`0-${rowIndex}`] = el }}
+                          aria-invalid={broughtOverStock}
+                          title={broughtOverStock ? `Brought exceeds stock (${r.stock})` : undefined}
                           onFocus={e => e.target.select()}
+                          onKeyDown={e => handleInputKeyDown(e, 0, rowIndex, rowCount)}
                           onChange={e => setField(r.id, 'qty_brought', e.target.value)}
-                          className="h-8 w-16 text-xs text-right ml-auto" />
+                          className="h-8 w-16 text-xs text-center mx-auto" />
                       )}
                     </td>
-                    <td className="py-2 px-2 text-right">
+                    <td className="py-2 px-2 text-center">
                       {reconciled ? r.qty_sold : (
                         <Input type="number" min="0" value={r.qty_sold}
+                          ref={el => { inputRefs.current[`1-${rowIndex}`] = el }}
+                          aria-invalid={overSold}
+                          title={overSold ? 'Sold + voided exceeds brought' : undefined}
                           onFocus={e => e.target.select()}
+                          onKeyDown={e => handleInputKeyDown(e, 1, rowIndex, rowCount)}
                           onChange={e => setField(r.id, 'qty_sold', e.target.value)}
-                          className="h-8 w-16 text-xs text-right ml-auto" />
+                          className="h-8 w-16 text-xs text-center mx-auto" />
                       )}
                     </td>
-                    <td className="py-2 px-2 text-right">
+                    <td className="py-2 px-2 text-center">
                       {reconciled ? r.qty_voided : (
                         <Input type="number" min="0" value={r.qty_voided}
+                          ref={el => { inputRefs.current[`2-${rowIndex}`] = el }}
+                          aria-invalid={overSold}
+                          title={overSold ? 'Sold + voided exceeds brought' : undefined}
                           onFocus={e => e.target.select()}
+                          onKeyDown={e => handleInputKeyDown(e, 2, rowIndex, rowCount)}
                           onChange={e => setField(r.id, 'qty_voided', e.target.value)}
-                          className="h-8 w-16 text-xs text-right ml-auto" />
+                          className="h-8 w-16 text-xs text-center mx-auto" />
                       )}
                     </td>
                     <td className={cn('py-2 pl-2 text-right font-medium tabular-nums', remaining < 0 && 'text-destructive')}>
@@ -335,15 +391,6 @@ export function ReconciliationManager({
                 )
               })}
             </tbody>
-            <tfoot>
-              <tr className="text-xs font-medium border-t">
-                <td className="py-2 pr-2" colSpan={3}>Totals</td>
-                <td className="py-2 px-2 text-right tabular-nums">{totals.brought}</td>
-                <td className="py-2 px-2 text-right tabular-nums">{totals.sold}</td>
-                <td className="py-2 px-2 text-right tabular-nums">{totals.voided}</td>
-                <td className="py-2 pl-2 text-right tabular-nums">{totals.remaining}</td>
-              </tr>
-            </tfoot>
           </table>
         </div>
       )}

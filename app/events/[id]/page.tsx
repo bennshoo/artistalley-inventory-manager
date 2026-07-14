@@ -23,12 +23,12 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
     supabase.from('event_revenue').select('*').eq('event_id', id),
     supabase.from('cost').select('*').eq('event_id', id).order('created_at'),
     supabase.from('sales_sheet')
-      .select('id, status, sales_sheet_row(id, product_id, qty_brought, qty_sold, qty_voided, unit_cost, product(name, sku, image_url, is_active, quantity))')
+      .select('id, status, sales_sheet_row(id, product_id, qty_brought, qty_sold, qty_voided, unit_cost, product(name, sku, image_url, is_active, quantity, category(name)))')
       .eq('event_id', id)
       .order('generated_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
-    supabase.from('product').select('id, name, sku, image_url, quantity').eq('is_active', true).order('name'),
+    supabase.from('product').select('id, name, sku, image_url, quantity, category(name)').eq('is_active', true).order('name'),
     supabase.from('restock').select('product_id, unit_cost, date').order('date', { ascending: false }),
   ])
 
@@ -43,8 +43,10 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
     if (!(r.product_id in latestCost)) latestCost[r.product_id] = r.unit_cost
   }
 
+  const catName = (c: any): string | null => (Array.isArray(c) ? c[0]?.name : c?.name) ?? null
+
   const activeProducts: ActiveProduct[] = ((productsRes.data ?? []) as any[]).map(p => ({
-    id: p.id, name: p.name, sku: p.sku, image_url: p.image_url,
+    id: p.id, name: p.name, sku: p.sku, type: catName(p.category), image_url: p.image_url,
     quantity: p.quantity, unit_cost: latestCost[p.id] ?? 0,
   }))
 
@@ -55,7 +57,8 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
         .filter((r: any) => r.product?.is_active)
         .map((r: any) => ({
           id: r.id, product_id: r.product_id,
-          name: r.product?.name ?? '', sku: r.product?.sku ?? '', image_url: r.product?.image_url ?? null,
+          name: r.product?.name ?? '', sku: r.product?.sku ?? '', type: catName(r.product?.category),
+          image_url: r.product?.image_url ?? null,
           stock: r.product?.quantity ?? 0,
           qty_brought: r.qty_brought, qty_sold: r.qty_sold, qty_voided: r.qty_voided, unit_cost: r.unit_cost,
         }))
