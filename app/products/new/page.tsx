@@ -6,9 +6,9 @@ import { ChevronLeft } from 'lucide-react'
 export const dynamic = 'force-dynamic'
 
 export default async function NewProductPage() {
-  const [{ data: categories }, { data: tags }] = await Promise.all([
+  const [{ data: categories }, { data: collections }] = await Promise.all([
     supabase.from('category').select('*').order('name'),
-    supabase.from('tag').select('*').order('name'),
+    supabase.from('collection').select('*').order('name'),
   ])
 
   return (
@@ -17,7 +17,7 @@ export default async function NewProductPage() {
         <ChevronLeft size={14} /> Products
       </Link>
       <h1 className="text-2xl font-semibold">New Product</h1>
-      <ProductForm categories={categories ?? []} tags={tags ?? []} />
+      <ProductForm categories={categories ?? []} collections={collections ?? []} />
     </div>
   )
 }

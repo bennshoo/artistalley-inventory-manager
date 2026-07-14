@@ -5,13 +5,13 @@ import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
-import { Tag } from '@/lib/database.types'
-import { TAG_COLORS, getTagColor, pickNextColor } from '@/lib/tag-colors'
+import { Collection } from '@/lib/database.types'
+import { COLLECTION_COLORS, getCollectionColor, pickNextColor } from '@/lib/collection-colors'
 import { Trash2, Plus, Loader2, Pencil, Check, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-export function TagManager({ initialTags }: { initialTags: Tag[] }) {
-  const [tags, setTags] = useState(initialTags)
+export function CollectionManager({ initialCollections }: { initialCollections: Collection[] }) {
+  const [collections, setCollections] = useState(initialCollections)
   const [newName, setNewName] = useState('')
   const [adding, setAdding] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -19,45 +19,45 @@ export function TagManager({ initialTags }: { initialTags: Tag[] }) {
   const [editDraft, setEditDraft] = useState({ name: '', color: '' })
   const [savingId, setSavingId] = useState<string | null>(null)
 
-  async function addTag() {
+  async function addCollection() {
     if (!newName.trim()) return
     setAdding(true)
-    const color = pickNextColor(tags.map(t => t.color))
+    const color = pickNextColor(collections.map(c => c.color))
     const { data, error } = await supabase
-      .from('tag').insert({ name: newName.trim(), color }).select().single()
+      .from('collection').insert({ name: newName.trim(), color }).select().single()
     if (error) { toast.error(error.message); setAdding(false); return }
-    setTags(t => [...t, data].sort((a, b) => a.name.localeCompare(b.name)))
+    setCollections(c => [...c, data].sort((a, b) => a.name.localeCompare(b.name)))
     setNewName('')
     setAdding(false)
-    toast.success('Tag added')
+    toast.success('Collection added')
   }
 
   async function saveEdit(id: string) {
     if (!editDraft.name.trim()) return
     setSavingId(id)
     const { data, error } = await supabase
-      .from('tag').update({ name: editDraft.name.trim(), color: editDraft.color }).eq('id', id).select().single()
+      .from('collection').update({ name: editDraft.name.trim(), color: editDraft.color }).eq('id', id).select().single()
     if (error) { toast.error(error.message); setSavingId(null); return }
-    setTags(t => t.map(x => x.id === id ? data : x).sort((a, b) => a.name.localeCompare(b.name)))
+    setCollections(c => c.map(x => x.id === id ? data : x).sort((a, b) => a.name.localeCompare(b.name)))
     setEditingId(null)
     setSavingId(null)
-    toast.success('Tag updated')
+    toast.success('Collection updated')
   }
 
-  async function deleteTag(id: string) {
+  async function deleteCollection(id: string) {
     setDeletingId(id)
-    const { error } = await supabase.from('tag').delete().eq('id', id)
+    const { error } = await supabase.from('collection').delete().eq('id', id)
     if (error) { toast.error(error.message); setDeletingId(null); return }
-    setTags(t => t.filter(x => x.id !== id))
+    setCollections(c => c.filter(x => x.id !== id))
     setDeletingId(null)
-    toast.success('Tag deleted')
+    toast.success('Collection deleted')
   }
 
   return (
     <div className="space-y-4 w-fit">
       <div className="space-y-1">
-        {tags.map(t => {
-          const color = getTagColor(t.color)
+        {collections.map(t => {
+          const color = getCollectionColor(t.color)
           return (
             <div key={t.id} className="border rounded px-3 py-2">
               {editingId === t.id ? (
@@ -70,7 +70,7 @@ export function TagManager({ initialTags }: { initialTags: Tag[] }) {
                     autoFocus
                   />
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    {TAG_COLORS.map(c => (
+                    {COLLECTION_COLORS.map(c => (
                       <button
                         key={c.id}
                         type="button"
@@ -109,7 +109,7 @@ export function TagManager({ initialTags }: { initialTags: Tag[] }) {
                       <Pencil size={11} />
                     </Button>
                     <Button size="sm" variant="ghost"
-                      onClick={() => deleteTag(t.id)} disabled={deletingId === t.id}
+                      onClick={() => deleteCollection(t.id)} disabled={deletingId === t.id}
                       className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive">
                       {deletingId === t.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
                     </Button>
@@ -119,18 +119,18 @@ export function TagManager({ initialTags }: { initialTags: Tag[] }) {
             </div>
           )
         })}
-        {tags.length === 0 && <p className="text-sm text-muted-foreground">No tags yet.</p>}
+        {collections.length === 0 && <p className="text-sm text-muted-foreground">No collections yet.</p>}
       </div>
 
       <div className="flex gap-2">
         <Input
-          placeholder="Tag name"
+          placeholder="Collection name"
           value={newName}
           onChange={e => setNewName(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && addTag()}
+          onKeyDown={e => e.key === 'Enter' && addCollection()}
           className="flex-1"
         />
-        <Button size="sm" onClick={addTag} disabled={adding}>
+        <Button size="sm" onClick={addCollection} disabled={adding}>
           {adding ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
         </Button>
       </div>

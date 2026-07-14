@@ -11,15 +11,15 @@ export interface Database {
       product: {
         Row: {
           id: string; name: string; sku: string; image_url: string | null
-          quantity: number; category_id: string | null; is_active: boolean; created_at: string
+          quantity: number; category_id: string | null; collection_id: string | null; is_active: boolean; created_at: string
         }
         Insert: {
           id?: string; name: string; sku: string; image_url?: string | null
-          quantity?: number; category_id?: string | null; is_active?: boolean; created_at?: string
+          quantity?: number; category_id?: string | null; collection_id?: string | null; is_active?: boolean; created_at?: string
         }
         Update: {
           id?: string; name?: string; sku?: string; image_url?: string | null
-          quantity?: number; category_id?: string | null; is_active?: boolean; created_at?: string
+          quantity?: number; category_id?: string | null; collection_id?: string | null; is_active?: boolean; created_at?: string
         }
       }
       supplier: {
@@ -111,15 +111,10 @@ export interface Database {
           event_id?: string; created_at?: string
         }
       }
-      tag: {
+      collection: {
         Row: { id: string; name: string; color: string; created_at: string }
         Insert: { id?: string; name: string; color?: string; created_at?: string }
         Update: { id?: string; name?: string; color?: string; created_at?: string }
-      }
-      product_tag: {
-        Row: { product_id: string; tag_id: string }
-        Insert: { product_id: string; tag_id: string }
-        Update: { product_id?: string; tag_id?: string }
       }
       sales_sheet_row: {
         Row: {
@@ -165,7 +160,7 @@ export type InventoryAdjustment = Database['public']['Tables']['inventory_adjust
 export type Event = Database['public']['Tables']['event']['Row']
 export type EventRevenue = Database['public']['Tables']['event_revenue']['Row']
 export type Cost = Database['public']['Tables']['cost']['Row']
-export type Tag = Database['public']['Tables']['tag']['Row']
+export type Collection = Database['public']['Tables']['collection']['Row']
 export type SalesSheet = Database['public']['Tables']['sales_sheet']['Row']
 export type SalesSheetRow = Database['public']['Tables']['sales_sheet_row']['Row']
 export type Sale = Database['public']['Tables']['sale']['Row']

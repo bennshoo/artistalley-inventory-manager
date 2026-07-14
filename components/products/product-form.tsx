@@ -7,18 +7,16 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
-import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
-import { Category, Product, Tag } from '@/lib/database.types'
-import { getTagColor } from '@/lib/tag-colors'
-import { Loader2, X } from 'lucide-react'
+import { Category, Product, Collection } from '@/lib/database.types'
+import { getCollectionColor } from '@/lib/collection-colors'
+import { Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface ProductFormProps {
   categories: Category[]
-  tags: Tag[]
+  collections: Collection[]
   product?: Product
-  initialTagIds?: string[]
 }
 
 interface Errors {
@@ -27,12 +25,12 @@ interface Errors {
   category_id?: string
 }
 
-export function ProductForm({ categories, tags, product, initialTagIds = [] }: ProductFormProps) {
+export function ProductForm({ categories, collections, product }: ProductFormProps) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [errors, setErrors] = useState<Errors>({})
-  const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set(initialTagIds))
+  const [collectionId, setCollectionId] = useState<string>(product?.collection_id ?? '')
   const [form, setForm] = useState({
     name: product?.name ?? '',
     sku: product?.sku ?? '',
@@ -42,15 +40,6 @@ export function ProductForm({ categories, tags, product, initialTagIds = [] }: P
   function set(field: string, value: string) {
     setForm(f => ({ ...f, [field]: value }))
     setErrors(e => ({ ...e, [field]: undefined }))
-  }
-
-  function toggleTag(id: string) {
-    setSelectedTagIds(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
   }
 
   const selectedCategory = categories.find(c => c.id === form.category_id)
@@ -90,10 +79,9 @@ export function ProductForm({ categories, tags, product, initialTagIds = [] }: P
       name: form.name,
       sku: form.sku,
       category_id: form.category_id || null,
+      collection_id: collectionId || null,
       image_url,
     }
-
-    let productId: string
 
     if (product) {
       const { error } = await supabase.from('product').update({
@@ -101,24 +89,14 @@ export function ProductForm({ categories, tags, product, initialTagIds = [] }: P
         ...(product.category_id && !form.category_id ? { is_active: false } : {}),
       }).eq('id', product.id)
       if (error) { toast.error(error.message); setLoading(false); return }
-      productId = product.id
       toast.success('Product updated')
     } else {
-      const { data, error } = await supabase.from('product').insert({
+      const { error } = await supabase.from('product').insert({
         ...payload,
         is_active: !!form.category_id,
-      }).select().single()
+      })
       if (error) { toast.error(error.message); setLoading(false); return }
-      productId = data.id
       toast.success('Product created')
-    }
-
-    // Sync tags: delete all then re-insert
-    await supabase.from('product_tag').delete().eq('product_id', productId)
-    if (selectedTagIds.size > 0) {
-      await supabase.from('product_tag').insert(
-        [...selectedTagIds].map(tag_id => ({ product_id: productId, tag_id }))
-      )
     }
 
     router.push(product ? `/products/${product.id}` : '/products')
@@ -174,34 +152,34 @@ export function ProductForm({ categories, tags, product, initialTagIds = [] }: P
       </div>
 
       <div className="space-y-1.5">
-        <Label>Tags</Label>
-        {tags.length === 0 ? (
+        <Label>Collection</Label>
+        {collections.length === 0 ? (
           <p className="text-xs text-muted-foreground">
-            No tags yet. <a href="/categories" className="underline">Add some.</a>
+            No collections yet. <a href="/categories" className="underline">Add some.</a>
           </p>
         ) : (
           <div className="flex flex-wrap gap-1.5">
-            {tags.map(t => {
-              const color = getTagColor(t.color)
-              const active = selectedTagIds.has(t.id)
+            {collections.map(c => {
+              const color = getCollectionColor(c.color)
+              const active = collectionId === c.id
               return (
                 <button
-                  key={t.id}
+                  key={c.id}
                   type="button"
-                  onClick={() => toggleTag(t.id)}
+                  onClick={() => setCollectionId(active ? '' : c.id)}
                   className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium transition-opacity border-2"
                   style={active
                     ? { backgroundColor: color.bg, color: color.text, borderColor: color.bg }
                     : { backgroundColor: 'transparent', color: color.bg, borderColor: color.bg, opacity: 0.5 }
                   }
                 >
-                  {t.name}
-                  {active && <X size={10} className="opacity-70" />}
+                  {c.name}
                 </button>
               )
             })}
           </div>
         )}
+        <p className="text-xs text-muted-foreground">Select one, or click again to clear.</p>
       </div>
 
       <div className="space-y-1.5">

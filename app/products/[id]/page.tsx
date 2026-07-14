@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChevronLeft, Edit } from 'lucide-react'
 import { ProductImageUpload } from '@/components/products/product-image-upload'
+import { getCollectionColor } from '@/lib/collection-colors'
 import { DeleteProductButton } from '@/components/products/delete-product-button'
 import { ToggleProductActiveButton } from '@/components/products/toggle-product-active-button'
 import { LinkButton } from '@/components/ui/link-button'
@@ -15,7 +16,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   const { id } = await params
 
   const [productRes, restocksRes, salesRes, adjustmentsRes] = await Promise.all([
-    supabase.from('product').select('*, category(name, base_price)').eq('id', id).single(),
+    supabase.from('product').select('*, category(name, base_price), collection(name, color)').eq('id', id).single(),
     supabase.from('restock').select('*, supplier(name)').eq('product_id', id).order('date', { ascending: false }),
     supabase.from('sale').select('*, event(name)').eq('product_id', id).order('date', { ascending: false }),
     supabase.from('inventory_adjustment').select('*').eq('product_id', id).order('date', { ascending: false }),
@@ -40,11 +41,22 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
             <h1 className="text-2xl font-semibold">{product.name}</h1>
             <Badge variant="outline" className="text-xs">{product.sku}</Badge>
           </div>
-          {product.category?.name && (
-            <Badge variant="secondary" className="text-xs mt-1">
-              {product.category.name} · ${product.category.base_price.toFixed(2)}
-            </Badge>
-          )}
+          <div className="flex flex-wrap items-center gap-2 mt-1">
+            {product.category?.name && (
+              <Badge variant="secondary" className="text-xs">
+                {product.category.name} · ${product.category.base_price.toFixed(2)}
+              </Badge>
+            )}
+            {product.collection?.name && (() => {
+              const c = getCollectionColor(product.collection.color)
+              return (
+                <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
+                  style={{ backgroundColor: c.bg, color: c.text }}>
+                  {product.collection.name}
+                </span>
+              )
+            })()}
+          </div>
           <div className="flex flex-wrap items-center gap-2 mt-2">
             <Badge variant={product.quantity === 0 ? 'destructive' : product.quantity <= 5 ? 'outline' : 'secondary'}>
               {product.quantity} in stock

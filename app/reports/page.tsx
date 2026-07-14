@@ -1,6 +1,5 @@
 import { supabase } from "@/lib/supabase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { formatEventDate } from "@/lib/utils";
 import { ReportFilters } from "@/components/reports/report-filters";
 import { Suspense } from "react";
@@ -37,34 +36,6 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
     (!dateTo || e.date_end <= dateTo)
   );
 
-  // Product performance: units sold per product
-  const productSales: Record<
-    string,
-    { name: string; sku: string; qty: number; cogs: number }
-  > = {};
-  for (const s of sales) {
-    if (!productSales[s.product_id]) {
-      productSales[s.product_id] = {
-        name: s.product?.name ?? "",
-        sku: s.product?.sku ?? "",
-        qty: 0,
-        cogs: 0,
-      };
-    }
-    productSales[s.product_id].qty += s.qty_sold;
-    productSales[s.product_id].cogs += s.qty_sold * s.unit_cost;
-  }
-  const sortedProductSales = Object.values(productSales).sort(
-    (a, b) => b.qty - a.qty,
-  );
-
-  // Revenue by category
-  const catRevenue: Record<string, number> = {};
-  for (const s of sales) {
-    const cat = s.product?.category?.name ?? "Uncategorized";
-    catRevenue[cat] = (catRevenue[cat] ?? 0) + s.qty_sold;
-  }
-
   const generalExpenses = costs.filter((c: any) => c.event_id === null);
   const totalGeneralExpenses = generalExpenses.reduce((s: number, c: any) => s + c.amount, 0);
 
@@ -80,6 +51,23 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
     return { ...ev, totalRev, totalCost, net: totalRev - totalCost };
   });
 
+  // High-level profit & loss — realized (events that have ended) only
+  const today = new Date().toISOString().split("T")[0];
+  const realizedEvents = eventSummary.filter((ev) => ev.date_end < today);
+  const futureEvents = eventSummary.filter((ev) => ev.date_end >= today);
+
+  const realizedEventIdSet = new Set(realizedEvents.map((e) => e.id));
+  const totalRevenue = realizedEvents.reduce((s, ev) => s + ev.totalRev, 0);
+  const totalEventCosts = realizedEvents.reduce((s, ev) => s + ev.totalCost, 0);
+  const totalCOGS = sales
+    .filter((s: any) => realizedEventIdSet.has(s.event_id))
+    .reduce((sum: number, s: any) => sum + s.qty_sold * s.unit_cost, 0);
+  const totalExpenses = totalEventCosts + totalGeneralExpenses + totalCOGS;
+  const netProfit = totalRevenue - totalExpenses;
+
+  // Committed expenses on upcoming events, kept out of realized profit
+  const committedFutureExpenses = futureEvents.reduce((s, ev) => s + ev.totalCost, 0);
+
   return (
     <div className="space-y-6">
       <div>
@@ -89,6 +77,41 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
       <Suspense>
         <ReportFilters />
       </Suspense>
+
+      {/* High-level P&L (realized) */}
+      <div className="space-y-2">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Card>
+            <CardContent className="pt-4">
+              <p className="text-xs text-muted-foreground">Revenue</p>
+              <p className="text-2xl font-semibold text-green-700">${totalRevenue.toFixed(2)}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4">
+              <p className="text-xs text-muted-foreground">Expenses</p>
+              <p className="text-2xl font-semibold text-red-700">${totalExpenses.toFixed(2)}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                ${totalEventCosts.toFixed(2)} event · ${totalGeneralExpenses.toFixed(2)} general · ${totalCOGS.toFixed(2)} COGS
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4">
+              <p className="text-xs text-muted-foreground">Profit</p>
+              <p className={`text-2xl font-semibold ${netProfit >= 0 ? "text-green-700" : "text-red-700"}`}>
+                ${netProfit.toFixed(2)}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Realized from events that have ended.
+          {committedFutureExpenses > 0 && (
+            <> Plus <span className="font-medium text-foreground">${committedFutureExpenses.toFixed(2)}</span> committed to upcoming events (excluded from profit).</>
+          )}
+        </p>
+      </div>
 
       {/* Per-event summary */}
       <Card>
@@ -129,66 +152,6 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
           </div>
         </CardContent>
       </Card>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Product performance */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Product Performance</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {sortedProductSales.length === 0 && (
-              <p className="text-xs text-muted-foreground">No sales yet.</p>
-            )}
-            <div className="space-y-1">
-              {sortedProductSales.slice(0, 20).map((p) => (
-                <div
-                  key={p.sku}
-                  className="flex items-center justify-between text-xs border-b pb-1"
-                >
-                  <div>
-                    <span className="font-medium">{p.name}</span>
-                    <span className="text-muted-foreground ml-1">
-                      ({p.sku})
-                    </span>
-                  </div>
-                  <div className="flex gap-3">
-                    <span>{p.qty} sold</span>
-                    <span className="text-muted-foreground">
-                      COGS ${p.cogs.toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Revenue by category */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Units Sold by Category</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {Object.keys(catRevenue).length === 0 && (
-              <p className="text-xs text-muted-foreground">No sales yet.</p>
-            )}
-            <div className="space-y-2">
-              {Object.entries(catRevenue)
-                .sort(([, a], [, b]) => b - a)
-                .map(([cat, qty]) => (
-                  <div
-                    key={cat}
-                    className="flex items-center justify-between text-sm"
-                  >
-                    <span>{cat}</span>
-                    <Badge variant="secondary">{qty} units</Badge>
-                  </div>
-                ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
       {/* COGS report */}
       <Card>

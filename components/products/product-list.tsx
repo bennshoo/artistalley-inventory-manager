@@ -10,11 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/u
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { ProductImage } from '@/components/products/product-image'
 import { toast } from 'sonner'
-import { Loader2, Trash2, Tag, X, PowerOff, Power, Search, ChevronDown, Check } from 'lucide-react'
+import { Loader2, Trash2, Tag, Layers, X, PowerOff, Power, Search, ChevronDown, Check } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
-import { Category, Tag as TagType } from '@/lib/database.types'
-import { getTagColor } from '@/lib/tag-colors'
+import { Category, Collection } from '@/lib/database.types'
+import { getCollectionColor } from '@/lib/collection-colors'
 
 interface Product {
   id: string
@@ -25,13 +25,14 @@ interface Product {
   is_active: boolean
   category_id: string | null
   category: { name: string; base_price: number } | null
-  product_tag: { tag_id: string }[]
+  collection_id: string | null
+  collection: { id: string; name: string; color: string } | null
 }
 
 interface ProductListProps {
   products: Product[]
   categories: Category[]
-  tags: TagType[]
+  collections: Collection[]
 }
 
 const FILTERS_KEY = 'product-list-filters'
@@ -41,25 +42,24 @@ function loadProductFilters() {
   try { return JSON.parse(sessionStorage.getItem(FILTERS_KEY) ?? '{}') } catch { return {} }
 }
 
-export function ProductList({ products: initialProducts, categories, tags }: ProductListProps) {
+export function ProductList({ products: initialProducts, categories, collections }: ProductListProps) {
   const router = useRouter()
   const [products, setProducts] = useState(initialProducts)
   useEffect(() => { setProducts(initialProducts) }, [initialProducts])
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false)
+  const [collectionDialogOpen, setCollectionDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [newCategoryId, setNewCategoryId] = useState('')
+  const [newCollectionId, setNewCollectionId] = useState('')
   const [loading, setLoading] = useState(false)
   const [togglingId, setTogglingId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
-  const [activeTagIds, setActiveTagIds] = useState<Set<string>>(new Set())
-  const [tagWarningOpen, setTagWarningOpen] = useState(false)
-  const [tagEditOpen, setTagEditOpen] = useState(false)
-  const [draftTagIds, setDraftTagIds] = useState<Set<string>>(new Set())
+  const [activeCollectionIds, setActiveCollectionIds] = useState<Set<string>>(new Set())
   const [showInactive, setShowInactive] = useState<boolean>(false)
   const [showNeedsAttention, setShowNeedsAttention] = useState<boolean>(false)
   const [filterCategoryId, setFilterCategoryId] = useState<string>('')
-  const [tagDropdownOpen, setTagDropdownOpen] = useState(false)
+  const [collectionDropdownOpen, setCollectionDropdownOpen] = useState(false)
   const [maxUnits, setMaxUnits] = useState<string>('')
   const lastCheckedIndex = useRef<number | null>(null)
 
@@ -88,7 +88,7 @@ export function ProductList({ products: initialProducts, categories, tags }: Pro
   useEffect(() => {
     const saved = loadProductFilters()
     if (saved.search) setSearch(saved.search)
-    if (saved.activeTagIds?.length) setActiveTagIds(new Set(saved.activeTagIds))
+    if (saved.activeCollectionIds?.length) setActiveCollectionIds(new Set(saved.activeCollectionIds))
     if (saved.showInactive) setShowInactive(saved.showInactive)
     if (saved.showNeedsAttention) setShowNeedsAttention(saved.showNeedsAttention)
     if (saved.filterCategoryId) setFilterCategoryId(saved.filterCategoryId)
@@ -97,15 +97,15 @@ export function ProductList({ products: initialProducts, categories, tags }: Pro
 
   useEffect(() => {
     sessionStorage.setItem(FILTERS_KEY, JSON.stringify({
-      search, activeTagIds: [...activeTagIds], showInactive, showNeedsAttention, filterCategoryId, maxUnits,
+      search, activeCollectionIds: [...activeCollectionIds], showInactive, showNeedsAttention, filterCategoryId, maxUnits,
     }))
-  }, [search, activeTagIds, showInactive, showNeedsAttention, filterCategoryId, maxUnits])
+  }, [search, activeCollectionIds, showInactive, showNeedsAttention, filterCategoryId, maxUnits])
 
-  const hasActiveFilters = search.trim() || activeTagIds.size > 0 || showInactive || showNeedsAttention || filterCategoryId || maxUnits
+  const hasActiveFilters = search.trim() || activeCollectionIds.size > 0 || showInactive || showNeedsAttention || filterCategoryId || maxUnits
 
   function resetFilters() {
     setSearch('')
-    setActiveTagIds(new Set())
+    setActiveCollectionIds(new Set())
     setShowInactive(false)
     setShowNeedsAttention(false)
     setFilterCategoryId('')
@@ -113,8 +113,8 @@ export function ProductList({ products: initialProducts, categories, tags }: Pro
     sessionStorage.removeItem(FILTERS_KEY)
   }
 
-  function toggleTagFilter(id: string) {
-    setActiveTagIds(prev => {
+  function toggleCollectionFilter(id: string) {
+    setActiveCollectionIds(prev => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
       else next.add(id)
@@ -128,8 +128,8 @@ export function ProductList({ products: initialProducts, categories, tags }: Pro
       p.sku.toLowerCase().includes(search.toLowerCase()) ||
       p.category?.name.toLowerCase().includes(search.toLowerCase())
 
-    const matchesTags = activeTagIds.size === 0 ||
-      p.product_tag.some(pt => activeTagIds.has(pt.tag_id))
+    const matchesCollection = activeCollectionIds.size === 0 ||
+      (p.collection_id != null && activeCollectionIds.has(p.collection_id))
 
     const matchesActive = showInactive ? !p.is_active : p.is_active
 
@@ -138,7 +138,7 @@ export function ProductList({ products: initialProducts, categories, tags }: Pro
     const matchesNeedsAttention = !showNeedsAttention || (!p.is_active && !p.category_id)
     const matchesMaxUnits = !maxUnits || p.quantity < parseInt(maxUnits, 10)
 
-    return matchesSearch && matchesTags && matchesActive && matchesCategory && matchesNeedsAttention && matchesMaxUnits
+    return matchesSearch && matchesCollection && matchesActive && matchesCategory && matchesNeedsAttention && matchesMaxUnits
   })
 
   const allSelected = filtered.length > 0 && filtered.every(p => selected.has(p.id))
@@ -150,15 +150,6 @@ export function ProductList({ products: initialProducts, categories, tags }: Pro
   function toggleAll() {
     if (allSelected) setSelected(new Set())
     else setSelected(new Set(filtered.map(p => p.id)))
-  }
-
-  function toggle(id: string) {
-    setSelected(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
   }
 
   async function toggleActive(id: string, current: boolean) {
@@ -216,41 +207,22 @@ export function ProductList({ products: initialProducts, categories, tags }: Pro
     setLoading(false)
   }
 
-  function openModifyTags() {
-    const tagSets = selectedProducts.map(p => new Set(p.product_tag.map(pt => pt.tag_id)))
-    // Compute intersection for initial draft state
-    const intersection = new Set(
-      tags.filter(t => tagSets.every(s => s.has(t.id))).map(t => t.id)
-    )
-    setDraftTagIds(intersection)
-    // Check if all selected products have identical tag sets
-    const first = tagSets[0] ?? new Set()
-    const different = tagSets.some(s => s.size !== first.size || [...s].some(id => !first.has(id)))
-    if (different) {
-      setTagWarningOpen(true)
-    } else {
-      setTagEditOpen(true)
-    }
-  }
-
-  async function applyTags() {
+  async function applyCollection() {
     setLoading(true)
     const ids = [...selected]
-    // Delete existing tags for all selected products then re-insert
-    const { error: delError } = await supabase.from('product_tag').delete().in('product_id', ids)
-    if (delError) { toast.error(delError.message); setLoading(false); return }
-
-    if (draftTagIds.size > 0) {
-      const rows = ids.flatMap(product_id => [...draftTagIds].map(tag_id => ({ product_id, tag_id })))
-      const { error: insError } = await supabase.from('product_tag').insert(rows)
-      if (insError) { toast.error(insError.message); setLoading(false); return }
-    }
-
-    const newProductTags = [...draftTagIds].map(tag_id => ({ tag_id }))
-    setProducts(ps => ps.map(p => selected.has(p.id) ? { ...p, product_tag: newProductTags } : p))
-    toast.success(`Tags updated for ${ids.length} product${ids.length > 1 ? 's' : ''}`)
-    setTagEditOpen(false)
+    const resolved = newCollectionId === 'none' ? null : newCollectionId || null
+    const { error } = await supabase.from('product').update({ collection_id: resolved }).in('id', ids)
+    if (error) { toast.error(error.message); setLoading(false); return }
+    const col = collections.find(c => c.id === resolved)
+    setProducts(ps => ps.map(p =>
+      selected.has(p.id)
+        ? { ...p, collection_id: resolved, collection: col ? { id: col.id, name: col.name, color: col.color } : null }
+        : p
+    ))
+    toast.success(`Updated ${ids.length} product${ids.length > 1 ? 's' : ''} → ${col?.name ?? 'No collection'}`)
+    setCollectionDialogOpen(false)
     setSelected(new Set())
+    setNewCollectionId('')
     setLoading(false)
   }
 
@@ -311,46 +283,46 @@ export function ProductList({ products: initialProducts, categories, tags }: Pro
           />
         </div>
 
-        {/* Tags multi-select dropdown */}
-        {tags.length > 0 && (
+        {/* Collections multi-select dropdown */}
+        {collections.length > 0 && (
           <div className="relative">
             <button
-              onClick={() => setTagDropdownOpen(v => !v)}
+              onClick={() => setCollectionDropdownOpen(v => !v)}
               className={cn(
                 'h-8 inline-flex items-center gap-1.5 rounded-md border px-3 text-xs transition-colors',
-                activeTagIds.size > 0
+                activeCollectionIds.size > 0
                   ? 'border-foreground bg-foreground text-background'
                   : 'border-input bg-background text-muted-foreground hover:bg-muted/50'
               )}
             >
-              {activeTagIds.size > 0 ? `${activeTagIds.size} tag${activeTagIds.size > 1 ? 's' : ''}` : 'All tags'}
+              {activeCollectionIds.size > 0 ? `${activeCollectionIds.size} collection${activeCollectionIds.size > 1 ? 's' : ''}` : 'All collections'}
               <ChevronDown size={12} />
             </button>
-            {tagDropdownOpen && (
+            {collectionDropdownOpen && (
               <>
-                <div className="fixed inset-0 z-40" onClick={() => setTagDropdownOpen(false)} />
+                <div className="fixed inset-0 z-40" onClick={() => setCollectionDropdownOpen(false)} />
                 <div className="absolute z-50 mt-1 min-w-40 rounded-md border bg-popover shadow-md py-1">
-                  {tags.map(t => {
-                    const color = getTagColor(t.color)
-                    const active = activeTagIds.has(t.id)
+                  {collections.map(c => {
+                    const color = getCollectionColor(c.color)
+                    const active = activeCollectionIds.has(c.id)
                     return (
                       <button
-                        key={t.id}
-                        onClick={() => toggleTagFilter(t.id)}
+                        key={c.id}
+                        onClick={() => toggleCollectionFilter(c.id)}
                         className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-muted transition-colors"
                       >
                         <span
                           className="h-2.5 w-2.5 rounded-full shrink-0"
                           style={{ backgroundColor: color.bg }}
                         />
-                        <span className="flex-1 text-left">{t.name}</span>
+                        <span className="flex-1 text-left">{c.name}</span>
                         {active && <Check size={12} className="shrink-0" />}
                       </button>
                     )
                   })}
-                  {activeTagIds.size > 0 && (
+                  {activeCollectionIds.size > 0 && (
                     <button
-                      onClick={() => { setActiveTagIds(new Set()); setTagDropdownOpen(false) }}
+                      onClick={() => { setActiveCollectionIds(new Set()); setCollectionDropdownOpen(false) }}
                       className="w-full px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground border-t mt-1 text-left"
                     >
                       Clear
@@ -408,8 +380,8 @@ export function ProductList({ products: initialProducts, categories, tags }: Pro
           <Button size="sm" variant="outline" onClick={() => setCategoryDialogOpen(true)}>
             <Tag size={13} className="mr-1" />Change Category
           </Button>
-          <Button size="sm" variant="outline" onClick={openModifyTags}>
-            <Tag size={13} className="mr-1" />Modify Tags
+          <Button size="sm" variant="outline" onClick={() => setCollectionDialogOpen(true)}>
+            <Layers size={13} className="mr-1" />Set Collection
           </Button>
           {!allSelectedActive && (
             <Button size="sm" variant="outline" onClick={() => bulkSetActive(true)} disabled={loading}>
@@ -441,9 +413,7 @@ export function ProductList({ products: initialProducts, categories, tags }: Pro
       {/* Product grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {filtered.map((product, filteredIndex) => {
-          const productTags = product.product_tag
-            .map(pt => tags.find(t => t.id === pt.tag_id))
-            .filter(Boolean) as TagType[]
+          const collectionColor = product.collection ? getCollectionColor(product.collection.color) : null
 
           return (
             <div
@@ -515,20 +485,14 @@ export function ProductList({ products: initialProducts, categories, tags }: Pro
                   >
                     {product.quantity} in stock
                   </Badge>
-                  {productTags.length > 0 && (
+                  {product.collection && collectionColor && (
                     <div className="flex flex-wrap gap-1 mt-1.5">
-                      {productTags.map(t => {
-                        const color = getTagColor(t.color)
-                        return (
-                          <span
-                            key={t.id}
-                            className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
-                            style={{ backgroundColor: color.bg, color: color.text }}
-                          >
-                            {t.name}
-                          </span>
-                        )
-                      })}
+                      <span
+                        className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
+                        style={{ backgroundColor: collectionColor.bg, color: collectionColor.text }}
+                      >
+                        {product.collection.name}
+                      </span>
                     </div>
                   )}
                 </div>
@@ -539,7 +503,7 @@ export function ProductList({ products: initialProducts, categories, tags }: Pro
 
         {filtered.length === 0 && (
           <div className="col-span-3 text-center py-12 text-muted-foreground text-sm">
-            {search.trim() || activeTagIds.size > 0
+            {search.trim() || activeCollectionIds.size > 0
               ? 'No products match the current filters.'
               : <>No products yet. <Link href="/products/new" className="underline">Add one.</Link></>
             }
@@ -580,62 +544,33 @@ export function ProductList({ products: initialProducts, categories, tags }: Pro
         </DialogContent>
       </Dialog>
 
-      {/* Tag warning dialog */}
-      <Dialog open={tagWarningOpen} onOpenChange={setTagWarningOpen}>
+      {/* Set collection dialog */}
+      <Dialog open={collectionDialogOpen} onOpenChange={setCollectionDialogOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Different tags detected</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Set Collection</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Currently selected products have different tags. Modifying tags will cause all selected products to have the same tags. Continue?
+            Apply to {selected.size} selected product{selected.size > 1 ? 's' : ''}.
           </p>
+          <Select value={newCollectionId} onValueChange={v => setNewCollectionId(v ?? '')}>
+            <SelectTrigger className="w-full">
+              <span className={cn('flex-1 text-left text-sm', !newCollectionId ? 'text-muted-foreground' : '')}>
+                {newCollectionId === 'none'
+                  ? '— No collection —'
+                  : newCollectionId
+                    ? (collections.find(x => x.id === newCollectionId)?.name ?? 'Select collection')
+                    : 'Select collection'}
+              </span>
+            </SelectTrigger>
+            <SelectContent className="w-full min-w-(--anchor-width)">
+              <SelectItem value="none">— No collection —</SelectItem>
+              {collections.map(c => (
+                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setTagWarningOpen(false)}>Cancel</Button>
-            <Button size="sm" onClick={() => { setTagWarningOpen(false); setTagEditOpen(true) }}>Continue</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Tag edit dialog */}
-      <Dialog open={tagEditOpen} onOpenChange={setTagEditOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Modify Tags</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Applying to {selected.size} product{selected.size > 1 ? 's' : ''}. Select the tags you want them to have.
-          </p>
-          {tags.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No tags exist yet. Add some in Categories &amp; Tags.</p>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {tags.map(t => {
-                const color = getTagColor(t.color)
-                const active = draftTagIds.has(t.id)
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setDraftTagIds(prev => {
-                      const next = new Set(prev)
-                      if (next.has(t.id)) next.delete(t.id)
-                      else next.add(t.id)
-                      return next
-                    })}
-                    className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-medium transition-opacity border-2"
-                    style={active
-                      ? { backgroundColor: color.bg, color: color.text, borderColor: color.bg }
-                      : { backgroundColor: 'transparent', color: color.bg, borderColor: color.bg, opacity: 0.5 }
-                    }
-                  >
-                    {t.name}
-                    {active && <X size={11} className="opacity-70" />}
-                  </button>
-                )
-              })}
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setTagEditOpen(false)}>Cancel</Button>
-            <Button size="sm" onClick={applyTags} disabled={loading}>
+            <Button variant="outline" size="sm" onClick={() => setCollectionDialogOpen(false)}>Cancel</Button>
+            <Button size="sm" onClick={applyCollection} disabled={loading}>
               {loading && <Loader2 size={14} className="mr-1 animate-spin" />}Apply
             </Button>
           </DialogFooter>
