@@ -123,15 +123,18 @@ export interface Database {
       }
       sales_sheet_row: {
         Row: {
-          id: string; qty_sold: number; unit_cost: number; notes: string | null
+          id: string; qty_brought: number; qty_sold: number; qty_voided: number
+          unit_cost: number; notes: string | null
           sheet_id: string; product_id: string; created_at: string
         }
         Insert: {
-          id?: string; qty_sold?: number; unit_cost: number; notes?: string | null
+          id?: string; qty_brought?: number; qty_sold?: number; qty_voided?: number
+          unit_cost: number; notes?: string | null
           sheet_id: string; product_id: string; created_at?: string
         }
         Update: {
-          id?: string; qty_sold?: number; unit_cost?: number; notes?: string | null
+          id?: string; qty_brought?: number; qty_sold?: number; qty_voided?: number
+          unit_cost?: number; notes?: string | null
           sheet_id?: string; product_id?: string; created_at?: string
         }
       }

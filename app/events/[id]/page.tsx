@@ -8,7 +8,7 @@ import { getAppStatusStyle } from '@/lib/event-app-status'
 import { LinkButton } from '@/components/ui/link-button'
 import { RevenueLogger } from '@/components/events/revenue-logger'
 import { CostLogger } from '@/components/events/cost-logger'
-import { SalesSheetManager } from '@/components/events/sales-sheet-manager'
+import { ReconciliationManager, type ReconRow, type ActiveProduct } from '@/components/events/reconciliation-manager'
 import { DeleteEventButton } from '@/components/events/delete-event-button'
 import { ToggleEventActiveButton } from '@/components/events/toggle-event-active-button'
 import { EventNotesEditor } from '@/components/events/event-notes-editor'
@@ -18,18 +18,49 @@ export const dynamic = 'force-dynamic'
 export default async function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
 
-  const [eventRes, revenueRes, costsRes, sheetsRes] = await Promise.all([
+  const [eventRes, revenueRes, costsRes, sheetRes, productsRes, restocksRes] = await Promise.all([
     supabase.from('event').select('*').eq('id', id).single(),
     supabase.from('event_revenue').select('*').eq('event_id', id),
     supabase.from('cost').select('*').eq('event_id', id).order('created_at'),
-    supabase.from('sales_sheet').select('*').eq('event_id', id).order('generated_at', { ascending: false }),
+    supabase.from('sales_sheet')
+      .select('id, status, sales_sheet_row(id, product_id, qty_brought, qty_sold, qty_voided, unit_cost, product(name, sku, image_url, is_active, quantity))')
+      .eq('event_id', id)
+      .order('generated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase.from('product').select('id, name, sku, image_url, quantity').eq('is_active', true).order('name'),
+    supabase.from('restock').select('product_id, unit_cost, date').order('date', { ascending: false }),
   ])
 
   if (!eventRes.data) notFound()
   const event = eventRes.data
   const revenues = revenueRes.data ?? []
   const costs = costsRes.data ?? []
-  const sheets = sheetsRes.data ?? []
+
+  // Latest restock cost per product, used when creating new reconciliation rows
+  const latestCost: Record<string, number> = {}
+  for (const r of (restocksRes.data ?? []) as any[]) {
+    if (!(r.product_id in latestCost)) latestCost[r.product_id] = r.unit_cost
+  }
+
+  const activeProducts: ActiveProduct[] = ((productsRes.data ?? []) as any[]).map(p => ({
+    id: p.id, name: p.name, sku: p.sku, image_url: p.image_url,
+    quantity: p.quantity, unit_cost: latestCost[p.id] ?? 0,
+  }))
+
+  const sheet = sheetRes.data as any
+  // Only reconcile active products
+  const reconRows: ReconRow[] = sheet
+    ? (sheet.sales_sheet_row ?? [])
+        .filter((r: any) => r.product?.is_active)
+        .map((r: any) => ({
+          id: r.id, product_id: r.product_id,
+          name: r.product?.name ?? '', sku: r.product?.sku ?? '', image_url: r.product?.image_url ?? null,
+          stock: r.product?.quantity ?? 0,
+          qty_brought: r.qty_brought, qty_sold: r.qty_sold, qty_voided: r.qty_voided, unit_cost: r.unit_cost,
+        }))
+        .sort((a: ReconRow, b: ReconRow) => a.name.localeCompare(b.name))
+    : []
 
   const totalRevenue = revenues.reduce((s, r) => s + (r.ending_balance - r.starting_balance), 0)
   const totalCosts = costs.reduce((s, c) => s + c.amount, 0)
@@ -111,11 +142,18 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
         </Card>
       </div>
 
-      {/* Sales Sheet */}
+      {/* Inventory Reconciliation */}
       <Card>
-        <CardHeader><CardTitle className="text-sm">Sales Sheet</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-sm">Inventory Reconciliation</CardTitle></CardHeader>
         <CardContent>
-          <SalesSheetManager eventId={id} eventDate={event.date_start} initialSheets={sheets} />
+          <ReconciliationManager
+            eventId={id}
+            eventDate={event.date_start}
+            initialSheetId={sheet?.id ?? null}
+            initialStatus={sheet?.status ?? null}
+            initialRows={reconRows}
+            activeProducts={activeProducts}
+          />
         </CardContent>
       </Card>
     </div>
