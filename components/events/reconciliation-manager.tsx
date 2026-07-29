@@ -88,6 +88,14 @@ export function ReconciliationManager({
     setRows(rs => rs.map(r => r.id === rowId ? { ...r, [field]: n } : r))
   }
 
+  // Editing Remaining back-solves Sold: sold = brought - voided - remaining
+  function setRemaining(rowId: string, value: string) {
+    const target = Math.max(0, parseInt(value) || 0)
+    setRows(rs => rs.map(r =>
+      r.id === rowId ? { ...r, qty_sold: Math.max(0, r.qty_brought - r.qty_voided - target) } : r
+    ))
+  }
+
   async function startReconciliation() {
     if (activeProducts.length === 0) { toast.error('No active products to reconcile'); return }
     setStarting(true)
@@ -330,7 +338,7 @@ export function ReconciliationManager({
                 <th className="text-center font-medium py-2 px-2">Brought</th>
                 <th className="text-center font-medium py-2 px-2">Sold</th>
                 <th className="text-center font-medium py-2 px-2">Voided</th>
-                <th className="text-right font-medium py-2 pl-2">Remaining</th>
+                <th className="text-center font-medium py-2 pl-2">Remaining</th>
               </tr>
             </thead>
             <tbody>
@@ -385,8 +393,18 @@ export function ReconciliationManager({
                           className="h-8 w-16 text-xs text-center mx-auto" />
                       )}
                     </td>
-                    <td className={cn('py-2 pl-2 text-right font-medium tabular-nums', remaining < 0 && 'text-destructive')}>
-                      {remaining}
+                    <td className="py-2 pl-2 text-center">
+                      {reconciled ? (
+                        <span className={cn('font-medium tabular-nums', remaining < 0 && 'text-destructive')}>{remaining}</span>
+                      ) : (
+                        <Input type="number" min="0" value={remaining}
+                          ref={el => { inputRefs.current[`3-${rowIndex}`] = el }}
+                          aria-invalid={remaining < 0}
+                          onFocus={e => e.target.select()}
+                          onKeyDown={e => handleInputKeyDown(e, 3, rowIndex, rowCount)}
+                          onChange={e => setRemaining(r.id, e.target.value)}
+                          className="h-8 w-16 text-xs text-center mx-auto" />
+                      )}
                     </td>
                   </tr>
                 )
