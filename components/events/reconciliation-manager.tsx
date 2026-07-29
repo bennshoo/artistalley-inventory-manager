@@ -161,13 +161,14 @@ export function ReconciliationManager({
       if (error) { toast.error(error.message); setFinalizing(false); return }
     }
 
-    // Decrement stock by sold + voided (both permanently leave inventory)
-    const affected = rows.filter(r => r.qty_sold + r.qty_voided > 0)
-    if (affected.length > 0) {
-      const { data: current } = await supabase.from('product').select('id, quantity').in('id', affected.map(r => r.product_id))
+    // Sold units are deducted by the on_sale_insert trigger.
+    // Voided units also leave inventory but have no ledger row, so apply them here.
+    const voidedRows = rows.filter(r => r.qty_voided > 0)
+    if (voidedRows.length > 0) {
+      const { data: current } = await supabase.from('product').select('id, quantity').in('id', voidedRows.map(r => r.product_id))
       const qtyMap = new Map((current ?? []).map(p => [p.id, p.quantity]))
-      for (const r of affected) {
-        const next = Math.max(0, (qtyMap.get(r.product_id) ?? 0) - (r.qty_sold + r.qty_voided))
+      for (const r of voidedRows) {
+        const next = Math.max(0, (qtyMap.get(r.product_id) ?? 0) - r.qty_voided)
         await supabase.from('product').update({ quantity: next }).eq('id', r.product_id)
       }
     }

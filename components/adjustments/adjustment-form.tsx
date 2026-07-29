@@ -70,6 +70,8 @@ export function AdjustmentForm({ products }: { products: Product[] }) {
 
     const delta = parseInt(form.delta)
 
+    // The on_adjustment_insert trigger applies `delta` to product.quantity —
+    // do NOT update quantity here or it will be double-counted.
     const { error: adjError } = await supabase.from('inventory_adjustment').insert({
       product_id: form.product_id,
       delta,
@@ -77,9 +79,6 @@ export function AdjustmentForm({ products }: { products: Product[] }) {
       date: form.date,
     })
     if (adjError) { toast.error(adjError.message); setLoading(false); return }
-
-    const newQty = Math.max(0, (selected?.quantity ?? 0) + delta)
-    await supabase.from('product').update({ quantity: newQty }).eq('id', form.product_id)
 
     toast.success(`Adjusted ${selected?.name}: ${delta > 0 ? '+' : ''}${delta} units`)
     setForm({ product_id: '', delta: '', note: '', date: new Date().toISOString().split('T')[0] })
